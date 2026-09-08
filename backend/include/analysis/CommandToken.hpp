@@ -3,24 +3,40 @@
 
 #include <string>
 #include <vector>
+
 using namespace std;
 
+//Tipos de elementos que puede reconocer el tokenizer
+enum class TokenType {
+    Word,
+    Parameter,
+    Equal,
+    QuotedValue,
+    EndOfLine,
+    Invalid,
+    Comment,
+};
 
-//Representa los tipos de tokens
-enum class TokenType {Word,Parameter,Equal,QuotedValue,EndOfLine,Invalid};
+//Guarda el tipo de token y el texto que representa
+struct Token {
+    TokenType type;
+    string text;
+};
 
+//Resultado de tokenizar todo el texto recibido
+struct TokenizeResult {
+    vector<Token> tokens;
+    vector<string> errors;
+};
 
-//Tipo de token y el texto que representa
-struct Token {TokenType type; string text;};
-
-struct TokenizeResult //Resultados de la tokenizacion
-{vector<Token> tokens; vector<string> errors;};
-
-//Clase que tokeniza la entrada...Creo
+//Recorre el texto y lo separa en tokens
 class CommandToken {
-public: TokenizeResult tokenize(const std::string& inputText) const; 
+public:
+    TokenizeResult tokenize(const string& inputText) const;
 
 private:
-    bool isSeparator(char character) const; //define variable de separadores
-}; 
+    //Indica qué caracteres terminan una palabra
+    bool isSeparator(char character) const;
+};
+
 #endif

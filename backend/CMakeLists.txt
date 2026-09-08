@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(MIA_2S2026_Practica_202405047)
+project(MIA_2S2026_P1_202405047)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

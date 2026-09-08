@@ -23,22 +23,11 @@
 
 using namespace std;
 
-string lowercase(const string& text){
-    string lowerText = text;
 
-    for (char& character : lowerText){
-        if (character >= 'A' &&character <= 'Z'){
-            character = character - 'A' + 'a';
-        }
-    }
-
-    return lowerText;
-}
-
-
+//verifica si la linea esta vacia
 bool emptyLine(const string& line){
     for (char character : line){
-        if (character != ' ' &&character != '\t' &&character != '\r'){
+        if (character != ' ' && character != '\t' && character != '\r'){
             return false;
         }
     }
@@ -47,68 +36,55 @@ bool emptyLine(const string& line){
 }
 
 
+//ejecuta el comando que corresponde
+ValidationResult executeCommand(const ParsedCommand& command, SimulState& simulState){
 
-bool commentLine(const string& line){
-    for (char character : line){
-        if (character == ' ' ||character == '\t'){
-            continue;
-        }
-        return character == '#';
-    }
-    return false;
-}
-
-
-
-ValidationResult executeCommand(
-    const ParsedCommand& command,
-    SimulState& simulState){
-        //MkDisk
+    //MkDisk
     if (command.name == "mkdisk"){
         MkDiskCommand mkDiskCommand;
-        return mkDiskCommand.execute(command,simulState);
+        return mkDiskCommand.execute(command, simulState);
     }
 
-        //RmDisk
+    //RmDisk
     if (command.name == "rmdisk"){
         RmDiskCommand rmDiskCommand;
-        return rmDiskCommand.execute(command,simulState);
+        return rmDiskCommand.execute(command, simulState);
     }
 
-        //FDisk
+    //FDisk
     if (command.name == "fdisk"){
         FDiskCommand fdiskCommand;
-        return fdiskCommand.execute(command,simulState);
+        return fdiskCommand.execute(command, simulState);
     }
 
-        //Mount
+    //Mount
     if (command.name == "mount"){
         MountCommand mountCommand;
-        return mountCommand.execute(command,simulState);
+        return mountCommand.execute(command, simulState);
     }
 
-        //MkFs
+    //MkFs
     if (command.name == "mkfs"){
         MkFsCommand mkFsCommand;
-        return mkFsCommand.execute(command,simulState);
+        return mkFsCommand.execute(command, simulState);
     }
 
-        //MkUsr
+    //MkUsr
     if (command.name == "mkusr"){
         MkUsrCommand mkUsrCommand;
-        return mkUsrCommand.execute(command,simulState);
+        return mkUsrCommand.execute(command, simulState);
     }
 
-        //RmUsr
+    //RmUsr
     if (command.name == "rmusr"){
         RmUsrCommand rmUsrCommand;
-        return rmUsrCommand.execute(command,simulState);
+        return rmUsrCommand.execute(command, simulState);
     }
-    
-        //MkFile
+
+    //MkFile
     if (command.name == "mkfile"){
         MkFileCommand mkFileCommand;
-        return mkFileCommand.execute(command,simulState);
+        return mkFileCommand.execute(command, simulState);
     }
 
     return {
@@ -121,47 +97,53 @@ ValidationResult executeCommand(
 int main(){
     crow::App<crow::CORSHandler> app;
 
-    auto& cors =
-        app.get_middleware<crow::CORSHandler>();
+    auto& cors = app.get_middleware<crow::CORSHandler>();
 
     cors.global()
         .origin("*")
         .headers("Content-Type")
-        .methods(crow::HTTPMethod::GET,crow::HTTPMethod::POST,crow::HTTPMethod::OPTIONS);
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS);
 
     SimulState simulState("202405047");
 
 
-        //GET
+    //GET
     CROW_ROUTE(app, "/api/health")([](){
-        crow::json::wvalue body; body["status"] = "ok";
-        return crow::response(200,body);
+        crow::json::wvalue body;
+        body["status"] = "ok";
+
+        return crow::response(200, body);
     });
 
 
-        //POST
-    CROW_ROUTE(app, "/api/analyze")
-    .methods(crow::HTTPMethod::POST)([&simulState](const crow::request& request){
+    //POST
+    CROW_ROUTE(app, "/api/analyze").methods(crow::HTTPMethod::POST)([&simulState](const crow::request& request){
         crow::json::rvalue requestBody = crow::json::load(request.body);
 
 
         if (!requestBody){
             crow::json::wvalue body;
             body["success"] = false;
+
             crow::json::wvalue::list messages;
             messages.emplace_back("Error: el contenido recibido no es un JSON valido.");
+
             body["messages"] = std::move(messages);
-            return crow::response(400,body);
+
+            return crow::response(400, body);
         }
 
 
         if (!requestBody.has("input")){
             crow::json::wvalue body;
             body["success"] = false;
+
             crow::json::wvalue::list messages;
             messages.emplace_back("Error: no se recibio texto para analizar.");
-            body["messages"] =std::move(messages);
-            return crow::response(400,body);
+
+            body["messages"] = std::move(messages);
+
+            return crow::response(400, body);
         }
 
 
@@ -178,42 +160,56 @@ int main(){
         string currentLine;
 
 
-            //bucle de analisis
-        while (getline(commandStream,currentLine)){
-            
+        //bucle de analisis
+        while (getline(commandStream, currentLine)){
+
+            //conserva linea vacia
             if (emptyLine(currentLine)){
+                outputMessages.push_back("");
                 continue;
             }
 
-            if (commentLine(currentLine)){
-                continue;
-            }
-                //analisis lexico
+
+            //analisis lexico
             CommandToken commandToken;
             TokenizeResult tokenResult = commandToken.tokenize(currentLine);
+
             if (!tokenResult.errors.empty()){
                 hasErrors = true;
 
-                for (const string& lexicalError :tokenResult.errors){
+                for (const string& lexicalError : tokenResult.errors){
                     outputMessages.push_back(lexicalError);
                 }
+
                 continue;
             }
-                //analisis sintactico
+
+
+            //analisis sintactico
             CommandParser commandParser;
             ParseResult parseResult = commandParser.parse(tokenResult.tokens);
+
             if (!parseResult.errors.empty()){
                 hasErrors = true;
 
-                for (const string& syntaxError :parseResult.errors){
+                for (const string& syntaxError : parseResult.errors){
                     outputMessages.push_back(syntaxError);
                 }
+
                 continue;
             }
 
 
-            for (const ParsedCommand& parsedCommand :parseResult.commands){
-                ValidationResult commandResult =executeCommand(parsedCommand,simulState);
+            //recorre comandos parseados
+            for (const ParsedCommand& parsedCommand : parseResult.commands){
+
+                //si es comentario solo lo muestra
+                if (parsedCommand.isComment){
+                    outputMessages.push_back(parsedCommand.commentText);
+                    continue;
+                }
+
+                ValidationResult commandResult = executeCommand(parsedCommand, simulState);
                 outputMessages.push_back(commandResult.message);
 
                 if (!commandResult.success){
@@ -230,27 +226,25 @@ int main(){
 
         //json
         crow::json::wvalue::list jsonMessages;
-        for (const string& message :outputMessages){
+
+        for (const string& message : outputMessages){
             jsonMessages.emplace_back(message);
         }
 
         crow::json::wvalue body;
         body["success"] = !hasErrors;
-        body["messages"] =std::move(jsonMessages);
+        body["messages"] = std::move(jsonMessages);
 
 
-        return crow::response(200,body);
+        return crow::response(200, body);
     });
 
 
-    
-    cout << "Servidor: http://localhost:18080\n";
+    cout << "Servidor: http://localhost:2611\n";
     cout << "GET  /api/health\n";
     cout << "POST /api/analyze\n";
 
-    app.port(18080)
-       .multithreaded()
-       .run();
+    app.port(2611).multithreaded().run();
 
     return 0;
 }

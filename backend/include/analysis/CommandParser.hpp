@@ -6,19 +6,23 @@
 
 #include "analysis/CommandToken.hpp"
 #include "analysis/ParsedCommand.hpp"
+
 using namespace std;
 
-//Res del parseo
-struct ParseResult{
+//Guarda los comandos obtenidos y los errores encontrados durante el parseo
+struct ParseResult {
     vector<ParsedCommand> commands;
-    vector<std::string> errors;
+    vector<string> errors;
 };
 
-//Clase que parsea da res
-class CommandParser{
-public: ParseResult parse(const vector<Token>& tokens) const;
+//Convierte la lista de tokens en comandos con sus parametros
+class CommandParser {
+public:
+    ParseResult parse(const vector<Token>& tokens) const;
 
-private:string toLower(const string& text) const;
+private:
+    //Convierte nombres de comandos y parametros a minuscula
+    string toLower(const string& text) const;
 };
 
 #endif

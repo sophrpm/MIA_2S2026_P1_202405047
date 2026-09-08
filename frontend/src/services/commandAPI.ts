@@ -3,7 +3,7 @@ import type {
     HealthResponse,
 } from "../types/analysis";
 
-const BACKEND_URL = "http://localhost:18080";
+const BACKEND_URL = "http://localhost:2611";
 
 //backnd disponible?
 export async function checkServerStatus(): Promise<boolean> {
