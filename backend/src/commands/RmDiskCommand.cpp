@@ -1,26 +1,46 @@
 #include "commands/RmDiskCommand.hpp"
 
-ValidationResult RmDiskCommand::execute(
-    const ParsedCommand& command,
-    SimulState& state
-) const{
-    //parametros permitidos
-    if (command.params.size() != 1 || !command.hasParam("path")){
-        return {false, "RMDISK: solo se permite el parametro obligatorio -path."};
+#include "managers/DiskManager.hpp"
+
+using namespace std;
+
+
+//Ejecuta rmdisk
+ValidationResult RmDiskCommand::execute(const ParsedCommand& command) const {
+
+    //verifica parametros permitidos
+    for (const ParsedParam& param : command.params){
+        if (param.name != "path"){
+            return {false, "RMDISK: parametro no reconocido -" + param.name + "."};
+        }
     }
 
-    //necesita valor?
+    //verifica parametro repetido
+    if (command.countParam("path") > 1){
+        return {false, "RMDISK: el parametro -path esta repetido."};
+    }
+
+    //path es obligatorio
+    if (!command.hasParam("path")){
+        return {false, "RMDISK: falta el parametro obligatorio -path."};
+    }
+
+    //path necesita valor
     if (!command.paramHasValue("path")){
-        return {false, "RMDISK: -path necesita un valor."};
+        return {false, "RMDISK: el parametro -path necesita un valor."};
     }
 
-    std::string diskPath = command.getParam("path");
+    string path = command.getParam("path");
 
-    //existe disco?
-    if (!state.diskExists(diskPath)){
-        return {false, "RMDISK: el disco simulado no existe."};
+    if (path.empty()){
+        return {false, "RMDISK: el valor de -path no puede estar vacio."};
     }
 
-    state.removeDisk(diskPath);
-    return {true, "RMDISK: disco simulado eliminado: " + diskPath + "."};
+    DiskManager diskManager;
+    string message;
+
+    //elimina el disco real
+    bool success = diskManager.removeDisk(path, message);
+
+    return {success, message};
 }

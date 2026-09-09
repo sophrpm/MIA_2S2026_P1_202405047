@@ -1,27 +1,46 @@
 #include "commands/RmUsrCommand.hpp"
 
-ValidationResult RmUsrCommand::execute(
-    const ParsedCommand& command,
-    SimulState& state
-) const{
+#include "managers/UserManager.hpp"
 
-    //parametros permitidos
-    if (command.params.size() != 1 || !command.hasParam("user")){
-        return {false, "RMUSR: solo se permite el parametro obligatorio -user."};
+using namespace std;
+
+
+//Ejecuta rmusr
+ValidationResult RmUsrCommand::execute(const ParsedCommand& command, AppState& appState) const {
+
+    //verifica parametros permitidos
+    for (const ParsedParam& param : command.params){
+        if (param.name != "user"){
+            return {false, "RMUSR: parametro no reconocido -" + param.name + "."};
+        }
     }
 
-    //necesita valor?
+    //verifica parametro repetido
+    if (command.countParam("user") > 1){
+        return {false, "RMUSR: el parametro -user esta repetido."};
+    }
+
+    //user es obligatorio
+    if (!command.hasParam("user")){
+        return {false, "RMUSR: falta el parametro obligatorio -user."};
+    }
+
+    //user necesita valor
     if (!command.paramHasValue("user")){
-        return {false, "RMUSR: -user necesita un valor."};
+        return {false, "RMUSR: el parametro -user necesita un valor."};
     }
 
-    std::string username = command.getParam("user");
+    string user = command.getParam("user");
 
-    //existe usuario?
-    if (!state.userExists(username)){
-        return {false, "RMUSR: el usuario no existe."};
+    if (user.empty()){
+        return {false, "RMUSR: el valor de -user no puede estar vacio."};
     }
 
-    state.removeUser(username);
-    return {true, "RMUSR: usuario simulado eliminado: " + username + "."};
+    UserManager userManager;
+    string message;
+
+    //elimina el usuario
+    bool success = userManager.removeUser(user, appState, message);
+
+    return {success, message};
 }

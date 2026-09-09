@@ -1,5 +1,5 @@
-#ifndef MOUNT_COMMAND_HPP
-#define MOUNT_COMMAND_HPP
+#ifndef LOGOUT_COMMAND_HPP
+#define LOGOUT_COMMAND_HPP
 
 #include "analysis/ParsedCommand.hpp"
 #include "state/AppState.hpp"
@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mount
-class MountCommand {
+//Maneja el comando logout
+class LogoutCommand {
 public:
 
-    //Ejecuta mount
+    //Ejecuta logout
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

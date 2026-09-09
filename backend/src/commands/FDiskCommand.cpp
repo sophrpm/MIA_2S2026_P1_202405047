@@ -1,127 +1,377 @@
 #include "commands/FDiskCommand.hpp"
 
-#include <algorithm>
-#include <cctype>
+#include <climits>
+
+#include "managers/DiskManager.hpp"
+#include "utils/StringUtils.hpp"
+
 using namespace std;
 
 
-namespace{
+//Ejecuta fdisk
+ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
 
-string upperText(string text){
-    for (char& character : text){
-        character = static_cast<char>(toupper(static_cast<unsigned char>(character)));
-    }
-    return text;
-}
-
-bool validInt(const string& text, int& number){
-    try{
-        size_t usedChar = 0;
-        number = stoi(text, &usedChar);
-        return usedChar == text.size();
-    }
-    catch (...){
-        return false;
-    }
-}
-}
-
-
-ValidationResult FDiskCommand::execute(
-    const ParsedCommand& command,
-    SimulState& state
-) const{
-    //parametros permitidos
-    const vector<string> allowed = {
-        "size", "unit", "path", "type", "fit", "name"
-    };
-
-    //validacion de params
+    //verifica parametros permitidos
     for (const ParsedParam& param : command.params){
-        //permitido?
-        if (find(allowed.begin(), allowed.end(), param.name) == allowed.end()){
-            return {false, "FDISK: parametro no permitido -" + param.name + "."};
-        }
-
-        //necesita valor?
-        if (!param.hasValue){
-            return {false, "FDISK: el parametro -" + param.name + " necesita un valor."};
-        }
-
-        //repetido?
-        if (command.countParam(param.name) > 1){
-            return {false, "FDISK: el parametro -" + param.name + " esta repetido."};
+        if (param.name != "size" && param.name != "unit" && param.name != "path" && param.name != "type" && param.name != "fit" && param.name != "delete" && param.name != "name" && param.name != "add"){
+            return {false, "FDISK: parametro no reconocido -" + param.name + "."};
         }
     }
 
-    //param obligatorio
-    if (!command.hasParam("size") ||!command.hasParam("path") ||!command.hasParam("name")){
-        return {false, "FDISK: -size, -path y -name son obligatorios."};
+    //verifica parametros repetidos
+    if (command.countParam("size") > 1){
+        return {false, "FDISK: el parametro -size esta repetido."};
     }
 
-    //valor valido?
-    int partitionSize = 0;
-    if (!validInt(command.getParam("size"), partitionSize) || partitionSize <= 0)
-    {
-        return {false, "FDISK: -size debe ser un numero mayor que cero."};
+    if (command.countParam("unit") > 1){
+        return {false, "FDISK: el parametro -unit esta repetido."};
     }
 
-    //unidad valida?
-    string partitionUnit = command.hasParam("unit")? upperText(command.getParam("unit")): "K";
+    if (command.countParam("path") > 1){
+        return {false, "FDISK: el parametro -path esta repetido."};
+    }
 
-    if (partitionUnit != "B" && partitionUnit != "K" && partitionUnit != "M"){
+    if (command.countParam("type") > 1){
+        return {false, "FDISK: el parametro -type esta repetido."};
+    }
+
+    if (command.countParam("fit") > 1){
+        return {false, "FDISK: el parametro -fit esta repetido."};
+    }
+
+    if (command.countParam("delete") > 1){
+        return {false, "FDISK: el parametro -delete esta repetido."};
+    }
+
+    if (command.countParam("name") > 1){
+        return {false, "FDISK: el parametro -name esta repetido."};
+    }
+
+    if (command.countParam("add") > 1){
+        return {false, "FDISK: el parametro -add esta repetido."};
+    }
+
+    //path y name siempre son obligatorios
+    if (!command.hasParam("path")){
+        return {false, "FDISK: falta el parametro obligatorio -path."};
+    }
+
+    if (!command.hasParam("name")){
+        return {false, "FDISK: falta el parametro obligatorio -name."};
+    }
+
+    if (!command.paramHasValue("path")){
+        return {false, "FDISK: el parametro -path necesita un valor."};
+    }
+
+    if (!command.paramHasValue("name")){
+        return {false, "FDISK: el parametro -name necesita un valor."};
+    }
+
+    string path = command.getParam("path");
+    string name = command.getParam("name");
+
+    if (path.empty()){
+        return {false, "FDISK: el valor de -path no puede estar vacio."};
+    }
+
+    if (name.empty()){
+        return {false, "FDISK: el valor de -name no puede estar vacio."};
+    }
+
+    if (name.size() > 16){
+        return {false, "FDISK: el nombre de la particion no puede superar 16 caracteres."};
+    }
+
+    bool deleteOperation = isDeleteOperation(command);
+    bool addOperation = isAddOperation(command);
+
+    //no permite mezclar operaciones
+    if (deleteOperation && addOperation){
+        return {false, "FDISK: no se puede usar -delete y -add al mismo tiempo."};
+    }
+
+    DiskManager diskManager;
+    string message;
+
+    //ELIMINAR
+    if (deleteOperation){
+
+        if (!command.paramHasValue("delete")){
+            return {false, "FDISK: el parametro -delete necesita un valor."};
+        }
+
+        string deleteType = StringUtils::toLower(command.getParam("delete"));
+
+        if (deleteType != "full"){
+            return {false, "FDISK: -delete solo acepta full."};
+        }
+
+        //no debe mezclar parametros de creacion
+        if (command.hasParam("size") || command.hasParam("type") || command.hasParam("fit") || command.hasParam("add")){
+            return {false, "FDISK: -delete no puede combinarse con parametros de creacion o modificacion."};
+        }
+
+        bool success = diskManager.deletePartition(path, name, message);
+
+        return {success, message};
+    }
+
+    //MODIFICAR
+    if (addOperation){
+
+        if (!command.paramHasValue("add")){
+            return {false, "FDISK: el parametro -add necesita un valor."};
+        }
+
+        if (command.hasParam("size") || command.hasParam("type") || command.hasParam("fit") || command.hasParam("delete")){
+            return {false, "FDISK: -add no puede combinarse con parametros de creacion o eliminacion."};
+        }
+
+        string addText = command.getParam("add");
+
+        if (addText.empty()){
+            return {false, "FDISK: el valor de -add no puede estar vacio."};
+        }
+
+        int sign = 1;
+        size_t startPosition = 0;
+
+        //acepta numero negativo
+        if (addText[0] == '-'){
+            sign = -1;
+            startPosition = 1;
+        } else if (addText[0] == '+'){
+            startPosition = 1;
+        }
+
+        if (startPosition >= addText.size()){
+            return {false, "FDISK: el valor de -add no es valido."};
+        }
+
+        long long addValue = 0;
+
+        //convierte add manualmente
+        for (size_t position = startPosition; position < addText.size(); position++){
+            char character = addText[position];
+
+            if (character < '0' || character > '9'){
+                return {false, "FDISK: el parametro -add debe ser un numero entero."};
+            }
+
+            int digit = character - '0';
+
+            if (addValue > (LLONG_MAX - digit) / 10){
+                return {false, "FDISK: el valor de -add es demasiado grande."};
+            }
+
+            addValue = addValue * 10 + digit;
+        }
+
+        addValue *= sign;
+
+        if (addValue == 0){
+            return {false, "FDISK: el parametro -add no puede ser cero."};
+        }
+
+        string unit = "K";
+
+        if (command.hasParam("unit")){
+            if (!command.paramHasValue("unit")){
+                return {false, "FDISK: el parametro -unit necesita un valor."};
+            }
+
+            unit = StringUtils::toUpper(command.getParam("unit"));
+        }
+
+        if (unit != "B" && unit != "K" && unit != "M"){
+            return {false, "FDISK: -unit solo acepta B, K o M."};
+        }
+
+        long long addBytes;
+
+        if (unit == "B"){
+            addBytes = addValue;
+        } else if (unit == "K"){
+            addBytes = addValue * 1024;
+        } else {
+            addBytes = addValue * 1024 * 1024;
+        }
+
+        if (addBytes > INT_MAX || addBytes < INT_MIN){
+            return {false, "FDISK: el tamaño de modificacion es demasiado grande."};
+        }
+
+        bool success = diskManager.resizePartition(path, name, static_cast<int>(addBytes), message);
+
+        return {success, message};
+    }
+
+    //CREAR
+    if (!command.hasParam("size")){
+        return {false, "FDISK: falta el parametro obligatorio -size para crear una particion."};
+    }
+
+    if (!command.paramHasValue("size")){
+        return {false, "FDISK: el parametro -size necesita un valor."};
+    }
+
+    string sizeText = command.getParam("size");
+
+    if (sizeText.empty()){
+        return {false, "FDISK: el valor de -size no puede estar vacio."};
+    }
+
+    long long sizeValue = 0;
+
+    //convierte size manualmente
+    for (char character : sizeText){
+        if (character < '0' || character > '9'){
+            return {false, "FDISK: el parametro -size debe ser un numero entero positivo."};
+        }
+
+        int digit = character - '0';
+
+        if (sizeValue > (LLONG_MAX - digit) / 10){
+            return {false, "FDISK: el valor de -size es demasiado grande."};
+        }
+
+        sizeValue = sizeValue * 10 + digit;
+    }
+
+    if (sizeValue <= 0){
+        return {false, "FDISK: el parametro -size debe ser mayor que cero."};
+    }
+
+    //valores por defecto
+    string unit = "K";
+    string typeText = "P";
+    string fitText = "WF";
+
+    if (command.hasParam("unit")){
+        if (!command.paramHasValue("unit")){
+            return {false, "FDISK: el parametro -unit necesita un valor."};
+        }
+
+        unit = StringUtils::toUpper(command.getParam("unit"));
+    }
+
+    if (command.hasParam("type")){
+        if (!command.paramHasValue("type")){
+            return {false, "FDISK: el parametro -type necesita un valor."};
+        }
+
+        typeText = StringUtils::toUpper(command.getParam("type"));
+    }
+
+    if (command.hasParam("fit")){
+        if (!command.paramHasValue("fit")){
+            return {false, "FDISK: el parametro -fit necesita un valor."};
+        }
+
+        fitText = StringUtils::toUpper(command.getParam("fit"));
+    }
+
+    //valida unidad
+    if (unit != "B" && unit != "K" && unit != "M"){
         return {false, "FDISK: -unit solo acepta B, K o M."};
     }
 
-    //tipo valido?
-    string partitionType = command.hasParam("type")? upperText(command.getParam("type")): "P";
+    char type = getType(typeText);
 
-    if (partitionType != "P" && partitionType != "E" && partitionType != "L")
-    {
+    if (type == '\0'){
         return {false, "FDISK: -type solo acepta P, E o L."};
     }
 
-    //fit valido?
-    string partitionFit = "";
-    if (command.hasParam("fit")){
-        partitionFit = upperText(command.getParam("fit"));
-        if (partitionFit != "BF" && partitionFit != "FF" && partitionFit != "WF"){
-            return {false, "FDISK: -fit solo acepta BF, FF o WF."};
-        }
+    char fit = getFit(fitText);
+
+    if (fit == '\0'){
+        return {false, "FDISK: -fit solo acepta BF, FF o WF."};
     }
 
-    //simula crear particion
-    string diskPath = command.getParam("path");
-    string partitionName = command.getParam("name");
-
-    //existe?
-    if (!state.diskExists(diskPath)){
-        return {false, "FDISK: el disco simulado indicado en -path no existe."};
+    if (sizeValue > INT_MAX){
+        return {false, "FDISK: el valor de -size es demasiado grande."};
     }
 
-    //nombre vacio?
-    if (partitionName.empty()){
-        return {false, "FDISK: -name no puede estar vacio."};
+    long long sizeBytes = getSizeInBytes(static_cast<int>(sizeValue), unit);
+
+    if (sizeBytes <= 0 || sizeBytes > INT_MAX){
+        return {false, "FDISK: el tamaño final de la particion es demasiado grande."};
     }
 
-    //existe el nombre?
-    if (state.partitionExists(diskPath, partitionName)){
-        return {false, "FDISK: ya existe una particion con ese nombre en el disco."};
+    bool success = diskManager.createPartition(path, static_cast<int>(sizeBytes), type, fit, name, message);
+
+    return {success, message};
+}
+
+
+//Convierte tamaño y unidad a bytes
+long long FDiskCommand::getSizeInBytes(int size, const string& unit) const {
+    string upperUnit = StringUtils::toUpper(unit);
+
+    if (upperUnit == "B"){
+        return size;
     }
 
-    //extendida ya existe?
-    if (partitionType == "E" && state.extendedPartitionExists(diskPath)){
-        return {false, "FDISK: el disco ya tiene una particion extendida."};
+    if (upperUnit == "K"){
+        return static_cast<long long>(size) * 1024;
     }
 
-    state.partitions.push_back({
-        diskPath,
-        partitionName,
-        partitionSize,
-        partitionUnit,
-        partitionType,
-        partitionFit
-    });
+    if (upperUnit == "M"){
+        return static_cast<long long>(size) * 1024 * 1024;
+    }
 
-    return {true, "FDISK: particion simulada creada: " + partitionName + "."};
+    return -1;
+}
+
+
+//Obtiene tipo de particion
+char FDiskCommand::getType(const string& type) const {
+    string upperType = StringUtils::toUpper(type);
+
+    if (upperType == "P"){
+        return 'P';
+    }
+
+    if (upperType == "E"){
+        return 'E';
+    }
+
+    if (upperType == "L"){
+        return 'L';
+    }
+
+    return '\0';
+}
+
+
+//Obtiene fit de particion
+char FDiskCommand::getFit(const string& fit) const {
+    string upperFit = StringUtils::toUpper(fit);
+
+    if (upperFit == "BF"){
+        return 'B';
+    }
+
+    if (upperFit == "FF"){
+        return 'F';
+    }
+
+    if (upperFit == "WF"){
+        return 'W';
+    }
+
+    return '\0';
+}
+
+
+//Verifica si se quiere eliminar
+bool FDiskCommand::isDeleteOperation(const ParsedCommand& command) const {
+    return command.hasParam("delete");
+}
+
+
+//Verifica si se quiere modificar tamaño
+bool FDiskCommand::isAddOperation(const ParsedCommand& command) const {
+    return command.hasParam("add");
 }

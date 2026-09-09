@@ -2,11 +2,19 @@
 #define MKUSR_COMMAND_HPP
 
 #include "analysis/ParsedCommand.hpp"
-#include "simulation/SimulState.hpp"
+#include "state/AppState.hpp"
 #include "validation/ValidationResult.hpp"
 
-class MkUsrCommand{
-public: ValidationResult execute(const ParsedCommand& command,SimulState& state) const;
+using namespace std;
+
+
+//Maneja el comando mkusr
+class MkUsrCommand {
+public:
+
+    //Ejecuta mkusr
+    ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
+
 
 #endif

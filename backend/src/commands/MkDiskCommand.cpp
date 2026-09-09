@@ -1,95 +1,177 @@
 #include "commands/MkDiskCommand.hpp"
 
-#include <algorithm>
-#include <cctype>
+#include <climits>
+
+#include "managers/DiskManager.hpp"
+#include "utils/StringUtils.hpp"
+
 using namespace std;
 
-namespace{
 
-string upperText(string text){
-    for (char& character : text){
-        character = static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
-    }
-    return text;
-}
+//Ejecuta mkdisk
+ValidationResult MkDiskCommand::execute(const ParsedCommand& command) const {
 
-bool validInt(const std::string& text, int& number){
-    try{
-        size_t usedChars = 0;
-        number = stoi(text, &usedChars);
-        return usedChars == text.size();
-    }
-    catch (...){
-        return false;
-    }
-}
-}
-
-ValidationResult MkDiskCommand::execute(
-    const ParsedCommand& command,
-    SimulState& state
-) const{
-
-    //parametros permitidos
-    const vector<string> allowed = {"size", "fit", "unit", "path"};
-
-    //validacion de params
+    //verifica parametros permitidos
     for (const ParsedParam& param : command.params){
-        //permitido?
-        if (find(allowed.begin(), allowed.end(), param.name) == allowed.end()){
-            return {false, "MKDISK: parametro no permitido -" + param.name + "."};
-        }
-
-        //necesita valor?
-        if (!param.hasValue){
-            return {false, "MKDISK: el parametro -" + param.name + " necesita un valor."};
-        }
-
-        //repetido?
-        if (command.countParam(param.name) > 1){
-            return {false, "MKDISK: el parametro -" + param.name + " esta repetido."};
+        if (param.name != "size" && param.name != "fit" && param.name != "unit" && param.name != "path"){
+            return {false, "MKDISK: parametro no reconocido -" + param.name + "."};
         }
     }
 
-    //param obligatorio
-    if (!command.hasParam("size") || !command.hasParam("path")){
-        return {false, "MKDISK: -size y -path son obligatorios."};
+    //verifica parametros repetidos
+    if (command.countParam("size") > 1){
+        return {false, "MKDISK: el parametro -size esta repetido."};
     }
 
-    //valor valido?
-    int diskSize = 0;
-    if (!validInt(command.getParam("size"), diskSize) || diskSize <= 0){
-        return {false, "MKDISK: -size debe ser un numero mayor que cero."};
+    if (command.countParam("fit") > 1){
+        return {false, "MKDISK: el parametro -fit esta repetido."};
     }
 
-    //unidad valida?
-    string diskUnit = command.hasParam("unit")? upperText(command.getParam("unit")): "M";
+    if (command.countParam("unit") > 1){
+        return {false, "MKDISK: el parametro -unit esta repetido."};
+    }
 
-    if (diskUnit != "K" && diskUnit != "M"){
+    if (command.countParam("path") > 1){
+        return {false, "MKDISK: el parametro -path esta repetido."};
+    }
+
+    //size es obligatorio
+    if (!command.hasParam("size")){
+        return {false, "MKDISK: falta el parametro obligatorio -size."};
+    }
+
+    //path es obligatorio
+    if (!command.hasParam("path")){
+        return {false, "MKDISK: falta el parametro obligatorio -path."};
+    }
+
+    //verifica que size tenga valor
+    if (!command.paramHasValue("size")){
+        return {false, "MKDISK: el parametro -size necesita un valor."};
+    }
+
+    //verifica que path tenga valor
+    if (!command.paramHasValue("path")){
+        return {false, "MKDISK: el parametro -path necesita un valor."};
+    }
+
+    //si vienen deben tener valor
+    if (command.hasParam("fit") && !command.paramHasValue("fit")){
+        return {false, "MKDISK: el parametro -fit necesita un valor."};
+    }
+
+    if (command.hasParam("unit") && !command.paramHasValue("unit")){
+        return {false, "MKDISK: el parametro -unit necesita un valor."};
+    }
+
+    string sizeText = command.getParam("size");
+    string path = command.getParam("path");
+
+    if (sizeText.empty()){
+        return {false, "MKDISK: el valor de -size no puede estar vacio."};
+    }
+
+    if (path.empty()){
+        return {false, "MKDISK: el valor de -path no puede estar vacio."};
+    }
+
+    //convierte size sin usar try/catch
+    long long sizeValue = 0;
+
+    for (char character : sizeText){
+        if (character < '0' || character > '9'){
+            return {false, "MKDISK: el parametro -size debe ser un numero entero positivo."};
+        }
+
+        int digit = character - '0';
+
+        if (sizeValue > (LLONG_MAX - digit) / 10){
+            return {false, "MKDISK: el valor de -size es demasiado grande."};
+        }
+
+        sizeValue = sizeValue * 10 + digit;
+    }
+
+    if (sizeValue <= 0){
+        return {false, "MKDISK: el parametro -size debe ser mayor que cero."};
+    }
+
+    //valores por defecto
+    string unit = "M";
+    string fitText = "FF";
+
+    if (command.hasParam("unit")){
+        unit = StringUtils::toUpper(command.getParam("unit"));
+    }
+
+    if (command.hasParam("fit")){
+        fitText = StringUtils::toUpper(command.getParam("fit"));
+    }
+
+    //valida unidad
+    if (unit != "K" && unit != "M"){
         return {false, "MKDISK: -unit solo acepta K o M."};
     }
 
-    //fit valido?
-    string diskFit = command.hasParam("fit")? upperText(command.getParam("fit")): "FF";
+    //valida fit
+    char fit = getFit(fitText);
 
-    if (diskFit != "BF" && diskFit != "FF" && diskFit != "WF"){
+    if (fit == '\0'){
         return {false, "MKDISK: -fit solo acepta BF, FF o WF."};
     }
 
-    //path valido?
-    string diskPath = command.getParam("path");
-    if (diskPath.empty()){
-        return {false, "MKDISK: -path no puede estar vacio."};
+    //el manager usa int para tamaños
+    if (sizeValue > INT_MAX){
+        return {false, "MKDISK: el valor de -size es demasiado grande."};
     }
 
-    if (state.diskExists(diskPath)){
-        return {false, "MKDISK: ya existe un disco simulado con esa ruta."};
+    long long sizeBytes = getSizeInBytes(static_cast<int>(sizeValue), unit);
+
+    if (sizeBytes <= 0 || sizeBytes > INT_MAX){
+        return {false, "MKDISK: el tamaño final del disco es demasiado grande."};
     }
 
-    state.disks.push_back({diskPath, diskSize, diskUnit, diskFit});
+    DiskManager diskManager;
+    string message;
 
-    return {
-        true,
-        "MKDISK: disco simulado creado en " + diskPath +" con tamano " + std::to_string(diskSize) + " " + diskUnit + "."
-    };
+    //crea el disco real
+    bool success = diskManager.createDisk(path, static_cast<int>(sizeBytes), fit, message);
+
+    return {success, message};
+}
+
+
+//Convierte tamaño y unidad a bytes
+long long MkDiskCommand::getSizeInBytes(int size, const string& unit) const {
+    string upperUnit = StringUtils::toUpper(unit);
+
+    if (upperUnit == "K"){
+        return static_cast<long long>(size) * 1024;
+    }
+
+    if (upperUnit == "M"){
+        return static_cast<long long>(size) * 1024 * 1024;
+    }
+
+    return -1;
+}
+
+
+//Convierte fit al valor que usa el disco
+char MkDiskCommand::getFit(const string& fit) const {
+    string upperFit = StringUtils::toUpper(fit);
+
+    if (upperFit == "BF"){
+        return 'B';
+    }
+
+    if (upperFit == "FF"){
+        return 'F';
+    }
+
+    if (upperFit == "WF"){
+        return 'W';
+    }
+
+    return '\0';
 }

@@ -1,5 +1,5 @@
-#ifndef MOUNT_COMMAND_HPP
-#define MOUNT_COMMAND_HPP
+#ifndef MKGRP_COMMAND_HPP
+#define MKGRP_COMMAND_HPP
 
 #include "analysis/ParsedCommand.hpp"
 #include "state/AppState.hpp"
@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mount
-class MountCommand {
+//Maneja el comando mkgrp
+class MkGrpCommand {
 public:
 
-    //Ejecuta mount
+    //Ejecuta mkgrp
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

@@ -1,5 +1,5 @@
-#ifndef MOUNT_COMMAND_HPP
-#define MOUNT_COMMAND_HPP
+#ifndef MKDIR_COMMAND_HPP
+#define MKDIR_COMMAND_HPP
 
 #include "analysis/ParsedCommand.hpp"
 #include "state/AppState.hpp"
@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mount
-class MountCommand {
+//Maneja el comando mkdir
+class MkDirCommand {
 public:
 
-    //Ejecuta mount
+    //Ejecuta mkdir
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

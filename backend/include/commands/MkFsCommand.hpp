@@ -2,11 +2,19 @@
 #define MKFS_COMMAND_HPP
 
 #include "analysis/ParsedCommand.hpp"
-#include "simulation/SimulState.hpp"
+#include "state/AppState.hpp"
 #include "validation/ValidationResult.hpp"
 
-class MkFsCommand{
-public: ValidationResult execute(const ParsedCommand& command,SimulState& state) const;
+using namespace std;
+
+
+//Maneja el comando mkfs
+class MkFsCommand {
+public:
+
+    //Ejecuta mkfs
+    ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
+
 
 #endif

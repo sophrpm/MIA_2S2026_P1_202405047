@@ -2,11 +2,18 @@
 #define RMDISK_COMMAND_HPP
 
 #include "analysis/ParsedCommand.hpp"
-#include "simulation/SimulState.hpp"
 #include "validation/ValidationResult.hpp"
 
-class RmDiskCommand{
-public: ValidationResult execute(const ParsedCommand& command,SimulState& state) const;
+using namespace std;
+
+
+//Maneja el comando rmdisk
+class RmDiskCommand {
+public:
+
+    //Ejecuta rmdisk
+    ValidationResult execute(const ParsedCommand& command) const;
 };
+
 
 #endif

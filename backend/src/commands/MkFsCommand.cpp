@@ -1,58 +1,93 @@
 #include "commands/MkFsCommand.hpp"
 
-#include <cctype>
+#include "managers/FileSystemManager.hpp"
+#include "managers/MountManager.hpp"
+#include "utils/StringUtils.hpp"
+
 using namespace std;
 
-namespace{
-string lowerText(string text){
-    for (char& character : text){
-        character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-    }
-    return text;
-}
-}
 
+//Ejecuta mkfs
+ValidationResult MkFsCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
-ValidationResult MkFsCommand::execute(
-    const ParsedCommand& command,
-    SimulState& state
-) const{
+    //verifica parametros permitidos
     for (const ParsedParam& param : command.params){
-
-        //permitido?
-        if (param.name != "id" && param.name != "type"){
-            return {false, "MKFS: parametro no permitido -" + param.name + "."};
-        }
-
-        //necesita valor?
-        if (!param.hasValue){
-            return {false, "MKFS: el parametro -" + param.name + " necesita un valor."};
-        }
-
-        //repetido?
-        if (command.countParam(param.name) > 1){
-            return {false, "MKFS: el parametro -" + param.name + " esta repetido."};
+        if (param.name != "id" && param.name != "type" && param.name != "fs"){
+            return {false, "MKFS: parametro no reconocido -" + param.name + "."};
         }
     }
 
-    //param obligatorio
+    //verifica parametros repetidos
+    if (command.countParam("id") > 1){
+        return {false, "MKFS: el parametro -id esta repetido."};
+    }
+
+    if (command.countParam("type") > 1){
+        return {false, "MKFS: el parametro -type esta repetido."};
+    }
+
+    if (command.countParam("fs") > 1){
+        return {false, "MKFS: el parametro -fs esta repetido."};
+    }
+
+    //id es obligatorio
     if (!command.hasParam("id")){
-        return {false, "MKFS: -id es obligatorio."};
+        return {false, "MKFS: falta el parametro obligatorio -id."};
     }
 
-    //valor valido?
-    string formatType = command.hasParam("type")? lowerText(command.getParam("type")): "full";
+    if (!command.paramHasValue("id")){
+        return {false, "MKFS: el parametro -id necesita un valor."};
+    }
 
-    if (formatType != "full"){
+    string id = command.getParam("id");
+
+    if (id.empty()){
+        return {false, "MKFS: el valor de -id no puede estar vacio."};
+    }
+
+    //valores por defecto
+    string type = "full";
+    string fs = "2fs";
+
+    if (command.hasParam("type")){
+        if (!command.paramHasValue("type")){
+            return {false, "MKFS: el parametro -type necesita un valor."};
+        }
+
+        type = StringUtils::toLower(command.getParam("type"));
+    }
+
+    if (command.hasParam("fs")){
+        if (!command.paramHasValue("fs")){
+            return {false, "MKFS: el parametro -fs necesita un valor."};
+        }
+
+        fs = StringUtils::toLower(command.getParam("fs"));
+    }
+
+    //solo soportamos formato full
+    if (type != "full"){
         return {false, "MKFS: -type solo acepta full."};
     }
 
-    //existe?
-    SimulMount* mountedPartition = state.findMount(command.getParam("id"));
-    if (mountedPartition == nullptr){
-        return {false, "MKFS: no existe una particion montada con ese id."};
+    //solo EXT2
+    if (fs != "2fs"){
+        return {false, "MKFS: -fs solo acepta 2fs."};
     }
-    //formatear
-    mountedPartition->formatted = true;
-    return {true, "MKFS: formato EXT2 simulado aplicado al id " + mountedPartition->id + "."};
+
+    MountManager mountManager;
+    MountedPartition mountedPartition;
+
+    //busca la particion montada
+    if (!mountManager.getMountedPartition(appState, id, mountedPartition)){
+        return {false, "MKFS: no existe una particion montada con el id " + id + "."};
+    }
+
+    FileSystemManager fileSystemManager;
+    string message;
+
+    //formatea la particion
+    bool success = fileSystemManager.formatExt2(mountedPartition.path, mountedPartition.start, mountedPartition.size, message);
+
+    return {success, message};
 }
