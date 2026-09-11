@@ -1,248 +1,247 @@
-#include "crow.h"
-#include "crow/middlewares/cors.h"
+#include <crow.h>
+#include <crow/middlewares/cors.h>
 
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
 #include "analysis/CommandParser.hpp"
 #include "analysis/CommandToken.hpp"
+#include "analysis/ParsedCommand.hpp"
 
+#include "commands/CatCommand.hpp"
+#include "commands/ChGrpCommand.hpp"
 #include "commands/FDiskCommand.hpp"
+#include "commands/LoginCommand.hpp"
+#include "commands/LogoutCommand.hpp"
+#include "commands/MkDirCommand.hpp"
 #include "commands/MkDiskCommand.hpp"
 #include "commands/MkFileCommand.hpp"
 #include "commands/MkFsCommand.hpp"
+#include "commands/MkGrpCommand.hpp"
 #include "commands/MkUsrCommand.hpp"
 #include "commands/MountCommand.hpp"
+#include "commands/MountedCommand.hpp"
+#include "commands/RepCommand.hpp"
 #include "commands/RmDiskCommand.hpp"
+#include "commands/RmGrpCommand.hpp"
 #include "commands/RmUsrCommand.hpp"
 
-#include "simulation/SimulState.hpp"
+#include "state/AppState.hpp"
 #include "validation/ValidationResult.hpp"
 
 using namespace std;
 
 
-//verifica si la linea esta vacia
-bool emptyLine(const string& line){
-    for (char character : line){
-        if (character != ' ' && character != '\t' && character != '\r'){
-            return false;
-        }
-    }
-
-    return true;
-}
+//Guarda montajes y sesion mientras corre el servidor
+AppState appState;
 
 
-//ejecuta el comando que corresponde
-ValidationResult executeCommand(const ParsedCommand& command, SimulState& simulState){
+//Ejecuta el comando que corresponde
+ValidationResult executeCommand(const ParsedCommand& command){
 
-    //MkDisk
     if (command.name == "mkdisk"){
         MkDiskCommand mkDiskCommand;
-        return mkDiskCommand.execute(command, simulState);
+        return mkDiskCommand.execute(command);
     }
 
-    //RmDisk
     if (command.name == "rmdisk"){
         RmDiskCommand rmDiskCommand;
-        return rmDiskCommand.execute(command, simulState);
+        return rmDiskCommand.execute(command);
     }
 
-    //FDisk
     if (command.name == "fdisk"){
-        FDiskCommand fdiskCommand;
-        return fdiskCommand.execute(command, simulState);
+        FDiskCommand fDiskCommand;
+        return fDiskCommand.execute(command);
     }
 
-    //Mount
     if (command.name == "mount"){
         MountCommand mountCommand;
-        return mountCommand.execute(command, simulState);
+        return mountCommand.execute(command, appState);
     }
 
-    //MkFs
+    if (command.name == "mounted"){
+        MountedCommand mountedCommand;
+        return mountedCommand.execute(command, appState);
+    }
+
     if (command.name == "mkfs"){
         MkFsCommand mkFsCommand;
-        return mkFsCommand.execute(command, simulState);
+        return mkFsCommand.execute(command, appState);
     }
 
-    //MkUsr
+    if (command.name == "login"){
+        LoginCommand loginCommand;
+        return loginCommand.execute(command, appState);
+    }
+
+    if (command.name == "logout"){
+        LogoutCommand logoutCommand;
+        return logoutCommand.execute(command, appState);
+    }
+
+    if (command.name == "mkgrp"){
+        MkGrpCommand mkGrpCommand;
+        return mkGrpCommand.execute(command, appState);
+    }
+
+    if (command.name == "rmgrp"){
+        RmGrpCommand rmGrpCommand;
+        return rmGrpCommand.execute(command, appState);
+    }
+
     if (command.name == "mkusr"){
         MkUsrCommand mkUsrCommand;
-        return mkUsrCommand.execute(command, simulState);
+        return mkUsrCommand.execute(command, appState);
     }
 
-    //RmUsr
     if (command.name == "rmusr"){
         RmUsrCommand rmUsrCommand;
-        return rmUsrCommand.execute(command, simulState);
+        return rmUsrCommand.execute(command, appState);
     }
 
-    //MkFile
+    if (command.name == "chgrp"){
+        ChGrpCommand chGrpCommand;
+        return chGrpCommand.execute(command, appState);
+    }
+
+    if (command.name == "mkdir"){
+        MkDirCommand mkDirCommand;
+        return mkDirCommand.execute(command, appState);
+    }
+
     if (command.name == "mkfile"){
         MkFileCommand mkFileCommand;
-        return mkFileCommand.execute(command, simulState);
+        return mkFileCommand.execute(command, appState);
     }
 
-    return {
-        false,
-        "Comando no reconocido: " + command.name
-    };
+    if (command.name == "cat"){
+        CatCommand catCommand;
+        return catCommand.execute(command, appState);
+    }
+
+    if (command.name == "rep"){
+        RepCommand repCommand;
+        return repCommand.execute(command, appState);
+    }
+
+    return {false, "Error: comando no reconocido " + command.name + "."};
 }
 
 
+//Inicia el servidor
 int main(){
+
     crow::App<crow::CORSHandler> app;
 
+    //configura cors
     auto& cors = app.get_middleware<crow::CORSHandler>();
 
-    cors.global()
-        .origin("*")
-        .headers("Content-Type")
-        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS);
-
-    SimulState simulState("202405047");
+    cors.global().headers("Content-Type").methods("GET"_method, "POST"_method, "OPTIONS"_method).origin("*");
 
 
-    //GET
-    CROW_ROUTE(app, "/api/health")([](){
-        crow::json::wvalue body;
-        body["status"] = "ok";
+    //verifica que el servidor este activo
+    CROW_ROUTE(app, "/api/health")
+    ([](){
 
-        return crow::response(200, body);
+        crow::json::wvalue response;
+
+        response["success"] = true;
+        response["message"] = "Servidor MIA activo.";
+
+        return crow::response(200, response);
     });
 
 
-    //POST
-    CROW_ROUTE(app, "/api/analyze").methods(crow::HTTPMethod::POST)([&simulState](const crow::request& request){
-        crow::json::rvalue requestBody = crow::json::load(request.body);
+    //analiza y ejecuta comandos
+    CROW_ROUTE(app, "/api/analyze").methods(crow::HTTPMethod::POST)
+    ([](const crow::request& request){
 
+        crow::json::wvalue response;
+        vector<string> messages;
 
-        if (!requestBody){
-            crow::json::wvalue body;
-            body["success"] = false;
+        //lee json recibido
+        crow::json::rvalue body = crow::json::load(request.body);
 
-            crow::json::wvalue::list messages;
-            messages.emplace_back("Error: el contenido recibido no es un JSON valido.");
+        if (!body){
+            response["success"] = false;
+            response["messages"] = vector<string>{"Error: cuerpo JSON no valido."};
 
-            body["messages"] = std::move(messages);
-
-            return crow::response(400, body);
+            return crow::response(400, response);
         }
 
+        //verifica campo input
+        if (!body.has("input")){
+            response["success"] = false;
+            response["messages"] = vector<string>{"Error: falta el campo input."};
 
-        if (!requestBody.has("input")){
-            crow::json::wvalue body;
-            body["success"] = false;
-
-            crow::json::wvalue::list messages;
-            messages.emplace_back("Error: no se recibio texto para analizar.");
-
-            body["messages"] = std::move(messages);
-
-            return crow::response(400, body);
+            return crow::response(400, response);
         }
 
+        string inputText = body["input"].s();
 
-        //input desde front
-        string commandText = requestBody["input"].s();
+        if (inputText.empty()){
+            response["success"] = false;
+            response["messages"] = vector<string>{"Error: no se ingresaron comandos."};
 
+            return crow::response(400, response);
+        }
 
-        //vector de mensajes por salida
-        vector<string> outputMessages;
-        bool hasErrors = false;
+        CommandToken tokenizer;
 
-        //recorre linea*linea
-        stringstream commandStream(commandText);
-        string currentLine;
+        //tokeniza todo el texto
+        TokenizeResult tokenResult = tokenizer.tokenize(inputText);
 
+        bool allSuccess = true;
 
-        //bucle de analisis
-        while (getline(commandStream, currentLine)){
+        //guarda errores lexicos
+        for (const string& error : tokenResult.errors){
+            messages.push_back(error);
+            allSuccess = false;
+        }
 
-            //conserva linea vacia
-            if (emptyLine(currentLine)){
-                outputMessages.push_back("");
+        CommandParser parser;
+
+        //convierte tokens en comandos
+        ParseResult parseResult = parser.parse(tokenResult.tokens);
+
+        //guarda errores del parser
+        for (const string& error : parseResult.errors){
+            messages.push_back(error);
+            allSuccess = false;
+        }
+
+        //ejecuta comandos obtenidos
+        for (const ParsedCommand& command : parseResult.commands){
+
+            //muestra comentarios
+            if (command.isComment){
+                messages.push_back(command.commentText);
                 continue;
             }
 
-
-            //analisis lexico
-            CommandToken commandToken;
-            TokenizeResult tokenResult = commandToken.tokenize(currentLine);
-
-            if (!tokenResult.errors.empty()){
-                hasErrors = true;
-
-                for (const string& lexicalError : tokenResult.errors){
-                    outputMessages.push_back(lexicalError);
-                }
-
+            //ignora comando vacio
+            if (command.name.empty()){
                 continue;
             }
 
+            ValidationResult result = executeCommand(command);
 
-            //analisis sintactico
-            CommandParser commandParser;
-            ParseResult parseResult = commandParser.parse(tokenResult.tokens);
+            messages.push_back(result.message);
 
-            if (!parseResult.errors.empty()){
-                hasErrors = true;
-
-                for (const string& syntaxError : parseResult.errors){
-                    outputMessages.push_back(syntaxError);
-                }
-
-                continue;
-            }
-
-
-            //recorre comandos parseados
-            for (const ParsedCommand& parsedCommand : parseResult.commands){
-
-                //si es comentario solo lo muestra
-                if (parsedCommand.isComment){
-                    outputMessages.push_back(parsedCommand.commentText);
-                    continue;
-                }
-
-                ValidationResult commandResult = executeCommand(parsedCommand, simulState);
-                outputMessages.push_back(commandResult.message);
-
-                if (!commandResult.success){
-                    hasErrors = true;
-                }
+            if (!result.success){
+                allSuccess = false;
             }
         }
 
+        response["success"] = allSuccess;
+        response["messages"] = messages;
 
-        if (outputMessages.empty()){
-            outputMessages.push_back("No se encontraron comandos para analizar.");
-        }
-
-
-        //json
-        crow::json::wvalue::list jsonMessages;
-
-        for (const string& message : outputMessages){
-            jsonMessages.emplace_back(message);
-        }
-
-        crow::json::wvalue body;
-        body["success"] = !hasErrors;
-        body["messages"] = std::move(jsonMessages);
-
-
-        return crow::response(200, body);
+        return crow::response(200, response);
     });
 
 
-    cout << "Servidor: http://localhost:2611\n";
-    cout << "GET  /api/health\n";
-    cout << "POST /api/analyze\n";
+    cout << "Servidor MIA ejecutandose en http://localhost:2611" << endl;
 
     app.port(2611).multithreaded().run();
 

@@ -57,11 +57,11 @@ function App() {
 
         const validExtension =
             selectedFileName.endsWith(".txt") ||
-            selectedFileName.endsWith(".mia");
+            selectedFileName.endsWith(".smia");
 
         if (!validExtension) {
             setMessages([
-                "Error: solo se permiten archivos con extensión .txt o .mia.",
+                "Error: solo se permiten archivos con extensión .txt o .smia.",
             ]);
 
             return;

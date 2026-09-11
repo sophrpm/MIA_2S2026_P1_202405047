@@ -18,25 +18,48 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Crow)
 
+
 #backend
 add_executable(
     202405047_ext2_backend
 
     src/main.cpp
 
+    #analysis
     src/analysis/CommandToken.cpp
     src/analysis/CommandParser.cpp
 
-    src/simulation/SimulState.cpp
-
+    #commands
     src/commands/MkDiskCommand.cpp
     src/commands/RmDiskCommand.cpp
     src/commands/FDiskCommand.cpp
     src/commands/MountCommand.cpp
+    src/commands/MountedCommand.cpp
     src/commands/MkFsCommand.cpp
+    src/commands/CatCommand.cpp
+    src/commands/LoginCommand.cpp
+    src/commands/LogoutCommand.cpp
+    src/commands/MkGrpCommand.cpp
+    src/commands/RmGrpCommand.cpp
     src/commands/MkUsrCommand.cpp
     src/commands/RmUsrCommand.cpp
+    src/commands/ChGrpCommand.cpp
     src/commands/MkFileCommand.cpp
+    src/commands/MkDirCommand.cpp
+    src/commands/RepCommand.cpp
+
+    #managers
+    src/managers/DiskManager.cpp
+    src/managers/MountManager.cpp
+    src/managers/FileSystemManager.cpp
+    src/managers/UserManager.cpp
+    src/managers/FileManager.cpp
+    src/managers/ReportManager.cpp
+
+    #utils
+    src/utils/BinaryUtils.cpp
+    src/utils/PathUtils.cpp
+    src/utils/StringUtils.cpp
 )
 
 
@@ -45,6 +68,7 @@ target_include_directories(
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
 
 target_link_libraries(
     202405047_ext2_backend

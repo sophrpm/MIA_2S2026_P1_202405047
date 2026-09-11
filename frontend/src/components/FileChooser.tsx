@@ -27,7 +27,7 @@ function FileChooser({
                 <input
                     className="file-loader-input"
                     type="file"
-                    accept=".txt, text/plain, .mia"
+                    accept=".txt, text/plain, .smia"
                     onChange={onFileSelect}
                 />
             </label>
