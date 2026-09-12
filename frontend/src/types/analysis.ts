@@ -1,10 +1,17 @@
-//Respuesta enviada a /api/analyze
+export interface ExecutionStats {
+    successfulCommands: number;
+    lexicalErrors: number;
+    syntaxErrors: number;
+}
+
+
 export interface AnalysisResponse {
     success: boolean;
     messages: string[];
+    stats: ExecutionStats;
+    pendingConfirmation: boolean;
 }
 
-//Respuesta enviada a /api/health
 export interface HealthResponse {
     success: boolean;
     message: string;

@@ -1,5 +1,5 @@
 /* ==========================================================
-   CONFIGURACIÓN GENERAL
+   configuración general
    ========================================================== */
 
 :root {
@@ -55,7 +55,7 @@ button:disabled {
 
 
 /* ==========================================================
-   CONTENEDOR PRINCIPAL
+   contenedor principal
    ========================================================== */
 
 .app-shell {
@@ -83,7 +83,7 @@ button:disabled {
 
 
 /* ==========================================================
-   ENCABEZADO
+   encabezado
    ========================================================== */
 
 .app-header {
@@ -141,16 +141,16 @@ button:disabled {
 
 
 /* ==========================================================
-   ESTADO DEL SERVIDOR
+   estado del servidor
    ========================================================== */
 
 /*
- * Tu componente genera varias clases cuando el servidor
+ * tu componente genera varias clases cuando el servidor
  * está conectado:
  *
- * class="El servidor esta online"
+ * class="el servidor esta online"
  */
-.El.servidor.esta.online {
+.server-status--online {
     display: inline-flex;
     align-items: center;
 
@@ -168,12 +168,12 @@ button:disabled {
 }
 
 /*
- * Tu componente genera estas clases cuando el servidor
+ * tu componente genera estas clases cuando el servidor
  * está desconectado:
  *
- * class="El servidor esta offline"
+ * class="el servidor esta offline"
  */
-.El.servidor.esta.offline {
+.server-status--offline {
     display: inline-flex;
     align-items: center;
 
@@ -190,7 +190,7 @@ button:disabled {
     font-weight: 600;
 }
 
-.server-status-indicator {
+.server-status__indicator {
     width: 10px;
     height: 10px;
 
@@ -199,14 +199,14 @@ button:disabled {
     border-radius: 50%;
 }
 
-.El.servidor.esta.online .server-status-indicator {
+.server-status--online .server-status__indicator {
     background-color: #21a45d;
 
     box-shadow:
         0 0 0 4px rgba(33, 164, 93, 0.15);
 }
 
-.El.servidor.esta.offline .server-status-indicator {
+.server-status--offline .server-status__indicator {
     background-color: #cb4b37;
 
     box-shadow:
@@ -215,7 +215,7 @@ button:disabled {
 
 
 /* ==========================================================
-   PANELES GENERALES
+   paneles generales
    ========================================================== */
 
 .panel,
@@ -285,7 +285,7 @@ button:disabled {
 
 
 /* ==========================================================
-   SELECTOR DE ARCHIVOS
+   selector de archivos
    ========================================================== */
 
 .file-loader {
@@ -360,7 +360,7 @@ button:disabled {
 
 
 /* ==========================================================
-   EDITOR DE COMANDOS
+   editor de comandos
    ========================================================== */
 
 .panel-editor {
@@ -425,7 +425,7 @@ button:disabled {
 
 
 /* ==========================================================
-   BOTONES
+   botones
    ========================================================== */
 
 .buttons {
@@ -495,7 +495,7 @@ button:disabled {
 
 
 /* ==========================================================
-   PANEL DE SALIDA
+   panel de salida
    ========================================================== */
 
 .output-panel-container {
@@ -573,7 +573,7 @@ button:disabled {
 
 
 /* ==========================================================
-   PIE DE PÁGINA
+   pie de página
    ========================================================== */
 
 .app-footer {
@@ -589,7 +589,7 @@ button:disabled {
 
 
 /* ==========================================================
-   ACCESIBILIDAD
+   accesibilidad
    ========================================================== */
 
 button:focus-visible,
@@ -601,7 +601,7 @@ button:focus-visible,
 
 
 /* ==========================================================
-   DISEÑO RESPONSIVO
+   diseño responsivo
    ========================================================== */
 
 @media (max-width: 640px) {
@@ -660,3 +660,4 @@ button:focus-visible,
         min-height: 180px;
     }
 }
+.output-panel { white-space: pre-wrap; overflow-wrap: anywhere; }

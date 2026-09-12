@@ -16,18 +16,23 @@ import {
 } from "./services/commandAPI";
 
 import "./styles/app.css";
+import type { ExecutionStats} from "./types/analysis";
 
 function App() {
     // conserva el nombre del archi
     const [fileName, setFileName] = useState("");
 
-    // Guarda el comandos en editor
+    // guarda el comandos en editr
     const [commandText, setCommandText] = useState("");
 
-    // Guarda los mensajes de output
+    // guarda los mensajes de outut
     const [messages, setMessages] = useState<string[]>([]);
 
     const [isOnline, setIsOnline] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [pending, setPending] = useState(false);
+    const [answer, setAnswer] = useState("");
+    const [stats, setStats] = useState<ExecutionStats | null>(null);
 
     useEffect(() => {
         const verifyServer = async (): Promise<void> => {
@@ -41,10 +46,8 @@ function App() {
     }, []);
 
     //lee archivo y hace display en el eidto
-    const handleFileSelected = async (
-        event: React.ChangeEvent<HTMLInputElement>
-    ): Promise<void> => {
-        // Obtiene el inputFile
+    const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+        // obtiene el inputfile
         const selectedFile =
             event.target.files?.[0];
 
@@ -56,12 +59,11 @@ function App() {
             selectedFile.name.toLowerCase();
 
         const validExtension =
-            selectedFileName.endsWith(".txt") ||
             selectedFileName.endsWith(".smia");
 
         if (!validExtension) {
             setMessages([
-                "Error: solo se permiten archivos con extensión .txt o .smia.",
+                "Error: solo se permiten archivos con extensión .smia.",
             ]);
 
             return;
@@ -90,18 +92,19 @@ function App() {
 
     
     const handleAnalyze = async (): Promise<void> => {
-        // Evita enviar un editor vacío.
-        if (commandText.trim().length === 0) {
+        // evita enviar un editor vacío.
+        if (busy || (pending ? answer.trim().length === 0 : commandText.length === 0)) {
             return;
         }
 
         
-        const serverAvailable =
-            await checkServerStatus();
+        setBusy(true);
+        const serverAvailable = await checkServerStatus();
 
         setIsOnline(serverAvailable);
 
         if (!serverAvailable) {
+            setBusy(false);
             setMessages([
                 "Error: no se pudo conectar con el backend.",
             ]);
@@ -112,12 +115,13 @@ function App() {
         try {
             
             const analysisResult =
-                await analyzeCommands(commandText);
+                await analyzeCommands(pending ? answer : commandText);
 
             
-            setMessages(
-                analysisResult.messages
-            );
+            setMessages(previous => pending ? [...previous, ...analysisResult.messages] : analysisResult.messages);
+            setStats(analysisResult.stats);
+            setPending(analysisResult.pendingConfirmation);
+            setAnswer("");
         } catch {
             
             setIsOnline(false);
@@ -125,6 +129,8 @@ function App() {
             setMessages([
                 "Error: ocurrió un problema al comunicarse con el backend.",
             ]);
+        } finally {
+            setBusy(false);
         }
     };
 
@@ -133,6 +139,7 @@ function App() {
         setFileName("");
         setCommandText("");
         setMessages([]);
+        setStats(null);
     };
 
     return (
@@ -158,7 +165,7 @@ function App() {
 
                 <Buttons
                     disabled={
-                        commandText.trim().length === 0
+                        busy || pending || commandText.length === 0
                     }
                     onAnalyze={handleAnalyze}
                     onClear={handleClear}
@@ -166,11 +173,19 @@ function App() {
 
                 <OutputPanel
                     messages={messages}
+                    stats={pending ? null : stats}
                 />
+                {pending && (
+                    <form className="panel" onSubmit={event => { event.preventDefault(); void handleAnalyze(); }}>
+                        <label htmlFor="confirmation">¿Desea sobrescribirlo? [y/n]: </label>
+                        <input id="confirmation" value={answer} onChange={event => setAnswer(event.target.value)} disabled={busy} autoFocus autoComplete="off" />
+                        <button type="submit" disabled={busy || !answer.trim()}>Responder</button>
+                    </form>
+                )}
             </main>
 
             <footer className="app-footer">
-                Práctica 1 · Analizador léxico y sintáctico EXT2
+                Proyecto 1 · Analizador léxico y sintáctico EXT2
             </footer>
         </div>
     );

@@ -33,7 +33,7 @@ function FileChooser({
             </label>
             <p className="panel-help">
                 Formato permitido: archivo de texto con extensión
-                .txt
+                .txt o .smia
             </p>
         </section>
     );

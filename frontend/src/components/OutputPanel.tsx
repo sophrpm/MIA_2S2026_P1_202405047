@@ -1,12 +1,13 @@
-interface OutputPanelProps {
+import type { ExecutionStats } from "../types/analysis";
 
-    messages: string[]; //lista de outputs
+interface OutputPanelProps {
+    messages: string[];
+    stats: ExecutionStats | null;
 }
 
-function OutputPanel({ 
-    messages,
-}: OutputPanelProps) {
-    return(
+function OutputPanel({ messages, stats }: OutputPanelProps) {
+    const summary = stats ? `\n----------------------------------------\nresumen de ejecucion\ncomandos exitosos: ${stats.successfulCommands}\nerrores lexicos: ${stats.lexicalErrors}\nerrores sintacticos: ${stats.syntaxErrors}\n----------------------------------------` : "";
+    return (
         <section className="output-panel-container">
             <div className="panel-header">
                 <div>
@@ -14,27 +15,8 @@ function OutputPanel({
                     <h2 className="panel-title">Output</h2>
                 </div>
             </div>
-
-            <div 
-            className="output-panel"
-            aria-live="polite"
-            >
-                {messages.length === 0 ? (
-                    <p className="output-panel-empty">Output de comandos...</p>
-                ) : (
-                    messages.map((message, index) => (
-                        <p key={`${message}-${index}`} className="output-panel-line">
-                            <span className="output-panel-symbol">
-                                &gt;
-                            </span>
-                            {message}
-                        </p>
-                    ))
-                )}
-                </div>
-
+            <pre className="output-panel" aria-live="polite">{messages.length === 0 && !stats ? "Output de comandos..." : messages.join("\n") + summary}</pre>
         </section>
-
     );
 }
 export default OutputPanel;
