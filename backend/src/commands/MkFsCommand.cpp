@@ -7,12 +7,12 @@
 using namespace std;
 
 
-//Ejecuta mkfs
+//ejecuta mkfs
 ValidationResult MkFsCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos
     for (const ParsedParam& param : command.params){
-        if (param.name != "id" && param.name != "type" && param.name != "fs"){
+        if (param.name != "id" && param.name != "type"){
             return {false, "MKFS: parametro no reconocido -" + param.name + "."};
         }
     }
@@ -24,10 +24,6 @@ ValidationResult MkFsCommand::execute(const ParsedCommand& command, AppState& ap
 
     if (command.countParam("type") > 1){
         return {false, "MKFS: el parametro -type esta repetido."};
-    }
-
-    if (command.countParam("fs") > 1){
-        return {false, "MKFS: el parametro -fs esta repetido."};
     }
 
     //id es obligatorio
@@ -47,7 +43,6 @@ ValidationResult MkFsCommand::execute(const ParsedCommand& command, AppState& ap
 
     //valores por defecto
     string type = "full";
-    string fs = "2fs";
 
     if (command.hasParam("type")){
         if (!command.paramHasValue("type")){
@@ -57,22 +52,9 @@ ValidationResult MkFsCommand::execute(const ParsedCommand& command, AppState& ap
         type = StringUtils::toLower(command.getParam("type"));
     }
 
-    if (command.hasParam("fs")){
-        if (!command.paramHasValue("fs")){
-            return {false, "MKFS: el parametro -fs necesita un valor."};
-        }
-
-        fs = StringUtils::toLower(command.getParam("fs"));
-    }
-
     //solo soportamos formato full
     if (type != "full"){
         return {false, "MKFS: -type solo acepta full."};
-    }
-
-    //solo EXT2
-    if (fs != "2fs"){
-        return {false, "MKFS: -fs solo acepta 2fs."};
     }
 
     MountManager mountManager;
@@ -89,5 +71,8 @@ ValidationResult MkFsCommand::execute(const ParsedCommand& command, AppState& ap
     //formatea la particion
     bool success = fileSystemManager.formatExt2(mountedPartition.path, mountedPartition.start, mountedPartition.size, message);
 
+    if (success && appState.session.partitionId == id){
+        appState.session = Session();
+    }
     return {success, message};
 }

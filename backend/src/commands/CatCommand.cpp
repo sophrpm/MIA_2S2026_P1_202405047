@@ -8,7 +8,7 @@
 using namespace std;
 
 
-//Ejecuta cat
+//ejecuta cat
 ValidationResult CatCommand::execute(const ParsedCommand& command, const AppState& appState) const {
 
     //verifica parametros permitidos
@@ -19,11 +19,22 @@ ValidationResult CatCommand::execute(const ParsedCommand& command, const AppStat
 
         string numberText = param.name.substr(4);
 
+        int number = 0;
         //despues de file solo deben venir numeros
         for (char character : numberText){
-            if (character < '0' || character > '9'){
+            if (character < '0' || character > '9' || number > (2147483647 - (character - '0')) / 10){
                 return {false, "CAT: parametro no reconocido -" + param.name + "."};
             }
+            number = number * 10 + character - '0';
+        }
+        if (number <= 0 || param.name != "file" + to_string(number)){
+            return {false, "CAT: use -fileN con un entero positivo sin ceros iniciales."};
+        }
+        if (command.countParam(param.name) > 1 || !param.hasValue || param.value.empty()){
+            return {false, "CAT: parametro repetido o sin valor -" + param.name + "."};
+        }
+        if (param.value[0] != '/'){
+            return {false, "CAT: la ruta debe ser absoluta."};
         }
     }
 
@@ -62,7 +73,7 @@ ValidationResult CatCommand::execute(const ParsedCommand& command, const AppStat
 }
 
 
-//Obtiene los archivos enviados como -file1, -file2...
+//obtiene los archivos enviados como -file1, -file2...
 vector<string> CatCommand::getFiles(const ParsedCommand& command) const {
     vector<pair<int, string>> orderedFiles;
 

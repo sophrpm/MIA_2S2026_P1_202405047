@@ -7,7 +7,7 @@
 using namespace std;
 
 
-//Ejecuta mkfile
+//ejecuta mkfile
 ValidationResult MkFileCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos
@@ -64,9 +64,13 @@ ValidationResult MkFileCommand::execute(const ParsedCommand& command, AppState& 
         return {false, "MKFILE: el valor de -path no puede estar vacio."};
     }
 
-    //la ruta dentro de EXT2 debe ser absoluta
+    //la ruta dentro de ext2 debe ser absoluta
     if (path[0] != '/'){
         return {false, "MKFILE: -path debe ser una ruta absoluta."};
+    }
+
+    if (!appState.session.active){
+        return {false, "MKFILE: debe iniciar sesion."};
     }
 
     bool recursive = command.hasParam("r");
@@ -114,6 +118,9 @@ ValidationResult MkFileCommand::execute(const ParsedCommand& command, AppState& 
             return {false, "MKFILE: el parametro -size no puede ser negativo."};
         }
 
+        if (sizeValue > 4380 * 64){
+            return {false, "MKFILE: el tamaño supera la capacidad de los apuntadores (280320 bytes)."};
+        }
         content = generateContent(static_cast<int>(sizeValue));
     }
 
@@ -123,16 +130,11 @@ ValidationResult MkFileCommand::execute(const ParsedCommand& command, AppState& 
     //primero intenta crear sin sobreescribir
     bool success = fileManager.createFile(path, content, recursive, false, appState, message);
 
-    //si ya existe se devuelve el mensaje para que el frontend pueda decidir
-    if (!success && message.find("ya existe") != string::npos){
-        return {false, "MKFILE: el archivo ya existe. Debe confirmar si desea sobreescribirlo."};
-    }
-
     return {success, message};
 }
 
 
-//Genera contenido usando 0123456789
+//genera contenido usando 0123456789
 string MkFileCommand::generateContent(int size) const {
     string content;
     string pattern = "0123456789";
@@ -152,14 +154,19 @@ string MkFileCommand::generateContent(int size) const {
 }
 
 
-//Lee contenido desde un archivo del sistema
+//lee contenido desde un archivo del sistema
 bool MkFileCommand::readExternalFile(const string& path, string& content) const {
-    ifstream file(path, ios::in | ios::binary);
+    ifstream file(path, ios::in | ios::binary | ios::ate);
 
     if (!file.is_open()){
         return false;
     }
 
+    streamoff size = file.tellg();
+    if (size < 0 || size > 4380 * 64){
+        return false;
+    }
+    file.seekg(0);
     content = "";
 
     char character;
@@ -169,6 +176,5 @@ bool MkFileCommand::readExternalFile(const string& path, string& content) const 
         content += character;
     }
 
-    file.close();
-    return true;
+    return file.eof() && !file.bad();
 }

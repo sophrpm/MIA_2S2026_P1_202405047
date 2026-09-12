@@ -3,12 +3,12 @@
 #include <cctype>
 using namespace std;
 
-// Verifica separadores
+// verifica separadores
 bool CommandToken::isSeparator(char character) const {
     return character == ' ' || character == '\t' || character == '\r' || character == '\n' || character == '=' || character == '#';
 }
 
-//Funcion que tokeniza entrada y devuelve res...
+//funcion que tokeniza entrada y devuelve res...
 TokenizeResult CommandToken::tokenize(const string& inputText) const {
     TokenizeResult result;
     size_t textPos = 0;
@@ -81,8 +81,10 @@ TokenizeResult CommandToken::tokenize(const string& inputText) const {
             continue;
         }
 
+        bool afterEqual = !result.tokens.empty() && result.tokens.back().type == TokenType::Equal;
         //signo de param-
-        if (currentCharacter == '-' && textPos + 1 < inputText.size() && isalpha(static_cast<unsigned char>(inputText[textPos + 1]))) {
+        if (!afterEqual && currentCharacter == '-' && textPos + 1 < inputText.size() && isalpha(static_cast<unsigned char>(inputText[textPos + 1]))) {
+            bool separated = textPos == 0 || isspace(static_cast<unsigned char>(inputText[textPos - 1]));
             string parameterName;
             parameterName += inputText[textPos];
             textPos++;
@@ -99,11 +101,12 @@ TokenizeResult CommandToken::tokenize(const string& inputText) const {
                 textPos++;
             }
 
-            result.tokens.push_back({TokenType::Parameter, parameterName});
+            result.tokens.push_back({TokenType::Parameter, parameterName, separated});
             continue;
         }
 
         string wordText;
+        bool invalidWord = false;
 
         //contiene palabra
         while (textPos < inputText.size() && !isSeparator(inputText[textPos])) {
@@ -111,16 +114,23 @@ TokenizeResult CommandToken::tokenize(const string& inputText) const {
                 break;
             }
 
+            unsigned char value = static_cast<unsigned char>(inputText[textPos]);
+            if (value < 32 || value == 127 || inputText[textPos] == ';' || inputText[textPos] == '|' || inputText[textPos] == '`'){
+                invalidWord = true;
+            }
             wordText += inputText[textPos];
             textPos++;
         }
 
         if (!wordText.empty()) {
-            result.tokens.push_back({TokenType::Word, wordText});
+            if (invalidWord){
+                result.errors.push_back("Error lexico: simbolo no permitido en una palabra.");
+            }
+            result.tokens.push_back({invalidWord ? TokenType::Invalid : TokenType::Word, wordText});
             continue;
         }
 
-        //Errres
+        //errres
         result.errors.push_back(string("Error lexico: simbolo no reconocido '") + currentCharacter + "'.");
         result.tokens.push_back({TokenType::Invalid, string(1, currentCharacter)});
         textPos++;

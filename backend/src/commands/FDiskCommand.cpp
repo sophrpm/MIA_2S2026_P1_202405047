@@ -8,7 +8,7 @@
 using namespace std;
 
 
-//Ejecuta fdisk
+//ejecuta fdisk
 ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
 
     //verifica parametros permitidos
@@ -94,7 +94,7 @@ ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
     DiskManager diskManager;
     string message;
 
-    //ELIMINAR
+    //eliminar
     if (deleteOperation){
 
         if (!command.paramHasValue("delete")){
@@ -112,12 +112,15 @@ ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
             return {false, "FDISK: -delete no puede combinarse con parametros de creacion o modificacion."};
         }
 
+        if (command.hasParam("unit") && (!command.paramHasValue("unit") || (StringUtils::toUpper(command.getParam("unit")) != "B" && StringUtils::toUpper(command.getParam("unit")) != "K" && StringUtils::toUpper(command.getParam("unit")) != "M"))){
+            return {false, "FDISK: -unit solo acepta B, K o M."};
+        }
         bool success = diskManager.deletePartition(path, name, message);
 
         return {success, message};
     }
 
-    //MODIFICAR
+    //modificar
     if (addOperation){
 
         if (!command.paramHasValue("add")){
@@ -188,6 +191,10 @@ ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
             return {false, "FDISK: -unit solo acepta B, K o M."};
         }
 
+        long long multiplier = unit == "M" ? 1024 * 1024 : (unit == "K" ? 1024 : 1);
+        if (addValue > INT_MAX / multiplier || addValue < INT_MIN / multiplier){
+            return {false, "FDISK: el tamaño de modificacion es demasiado grande."};
+        }
         long long addBytes;
 
         if (unit == "B"){
@@ -207,7 +214,7 @@ ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
         return {success, message};
     }
 
-    //CREAR
+    //crear
     if (!command.hasParam("size")){
         return {false, "FDISK: falta el parametro obligatorio -size para crear una particion."};
     }
@@ -305,7 +312,7 @@ ValidationResult FDiskCommand::execute(const ParsedCommand& command) const {
 }
 
 
-//Convierte tamaño y unidad a bytes
+//convierte tamaño y unidad a bytes
 long long FDiskCommand::getSizeInBytes(int size, const string& unit) const {
     string upperUnit = StringUtils::toUpper(unit);
 
@@ -325,7 +332,7 @@ long long FDiskCommand::getSizeInBytes(int size, const string& unit) const {
 }
 
 
-//Obtiene tipo de particion
+//obtiene tipo de particion
 char FDiskCommand::getType(const string& type) const {
     string upperType = StringUtils::toUpper(type);
 
@@ -345,7 +352,7 @@ char FDiskCommand::getType(const string& type) const {
 }
 
 
-//Obtiene fit de particion
+//obtiene fit de particion
 char FDiskCommand::getFit(const string& fit) const {
     string upperFit = StringUtils::toUpper(fit);
 
@@ -365,13 +372,13 @@ char FDiskCommand::getFit(const string& fit) const {
 }
 
 
-//Verifica si se quiere eliminar
+//verifica si se quiere eliminar
 bool FDiskCommand::isDeleteOperation(const ParsedCommand& command) const {
     return command.hasParam("delete");
 }
 
 
-//Verifica si se quiere modificar tamaño
+//verifica si se quiere modificar tamaño
 bool FDiskCommand::isAddOperation(const ParsedCommand& command) const {
     return command.hasParam("add");
 }

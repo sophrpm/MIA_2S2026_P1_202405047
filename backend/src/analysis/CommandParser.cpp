@@ -20,12 +20,12 @@ ParseResult CommandParser::parse(const vector<Token>& tokens) const {
     //recorre tokens y parsea
     while (tokenPos < tokens.size()) {
 
-        //Ignora fin de line
+        //ignora fin de line
         while (tokenPos < tokens.size() && tokens[tokenPos].type == TokenType::EndOfLine) {
             tokenPos++;
         }
 
-        //Si se acaban los tokens muere
+        //si se acaban los tokens muere
         if (tokenPos >= tokens.size()) {
             break;
         }
@@ -46,9 +46,9 @@ ParseResult CommandParser::parse(const vector<Token>& tokens) const {
             continue;
         }
 
-        //Si es invalid muere
+        //si es invalid muere
         if (tokens[tokenPos].type == TokenType::Invalid) {
-            result.errors.push_back("Error sintactico: hay un token invalido en el comando.");
+            //el lexer ya informo este error
 
             while (tokenPos < tokens.size() && tokens[tokenPos].type != TokenType::EndOfLine) {
                 tokenPos++;
@@ -68,22 +68,28 @@ ParseResult CommandParser::parse(const vector<Token>& tokens) const {
             continue;
         }
 
-        //Comando parseado
+        //comando parseado
         ParsedCommand parsedCommand;
         parsedCommand.name = toLower(tokens[tokenPos].text);
         tokenPos++;
 
         bool commandHasError = false;
 
+        const string knownCommands = " mkdisk rmdisk fdisk mount mounted mkfs cat login logout mkgrp rmgrp mkusr rmusr chgrp mkfile mkdir rep ";
+        if (knownCommands.find(" " + parsedCommand.name + " ") == string::npos){
+            result.errors.push_back("Error sintactico: comando no reconocido " + parsedCommand.name + ".");
+            commandHasError = true;
+        }
+
         //recorre y parsea param
-        while (tokenPos < tokens.size() && tokens[tokenPos].type != TokenType::EndOfLine) {
+        while (!commandHasError && tokenPos < tokens.size() && tokens[tokenPos].type != TokenType::EndOfLine) {
 
             //si aparece comentario termina comando
             if (tokens[tokenPos].type == TokenType::Comment) {
                 break;
             }
 
-            if (tokens[tokenPos].type != TokenType::Parameter) {
+            if (tokens[tokenPos].type != TokenType::Parameter || !tokens[tokenPos].separated) {
                 result.errors.push_back("Error sintactico en " + parsedCommand.name + ": se esperaba un parametro.");
                 commandHasError = true;
                 break;
