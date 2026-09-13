@@ -7,11 +7,11 @@
 using namespace std;
 
 
-//Maneja el comando rmdisk
+//maneja el comando rmdisk
 class RmDiskCommand {
 public:
 
-    //Ejecuta rmdisk
+    //ejecuta rmdisk
     ValidationResult execute(const ParsedCommand& command) const;
 };
 

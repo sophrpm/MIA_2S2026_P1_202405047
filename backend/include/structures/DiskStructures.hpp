@@ -6,7 +6,7 @@
 using namespace std;
 
 
-//Info de una particion primaria o extendida
+//info de una particion primaria o extendida
 struct Partition {
     char part_status = '0';
     char part_type = '0';
@@ -19,7 +19,7 @@ struct Partition {
 };
 
 
-//Info principal del disco
+//info principal del disco
 struct MBR {
     int mbr_tamano = 0;
     time_t mbr_fecha_creacion = 0;
@@ -29,7 +29,7 @@ struct MBR {
 };
 
 
-//Info de una particion logica
+//info de una particion logica
 struct EBR {
     char part_mount = '0';
     char part_fit = '0';

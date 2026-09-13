@@ -6,7 +6,7 @@
 
 using namespace std;
 
-//Tipos de elementos que puede reconocer el tokenizer
+//tipos de elementos que puede reconocer el tokenizer
 enum class TokenType {
     Word,
     Parameter,
@@ -17,26 +17,26 @@ enum class TokenType {
     Comment,
 };
 
-//Guarda el tipo de token y el texto que representa
+//guarda el tipo de token y el texto que representa
 struct Token {
     TokenType type;
     string text;
-};
-
-//Resultado de tokenizar todo el texto recibido
-struct TokenizeResult {
-    vector<Token> tokens;
-    vector<string> errors;
     bool separated = true;
 };
 
-//Recorre el texto y lo separa en tokens
+//resultado de tokenizar todo el texto recibido
+struct TokenizeResult {
+    vector<Token> tokens;
+    vector<string> errors;
+};
+
+//recorre el texto y lo separa en tokens
 class CommandToken {
 public:
     TokenizeResult tokenize(const string& inputText) const;
 
 private:
-    //Indica qué caracteres terminan una palabra
+    //indica qué caracteres terminan una palabra
     bool isSeparator(char character) const;
 };
 

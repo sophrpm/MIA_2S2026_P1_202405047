@@ -9,19 +9,19 @@
 
 using namespace std;
 
-//Guarda los comandos obtenidos y los errores encontrados durante el parseo
+//guarda los comandos obtenidos y los errores encontrados durante el parseo
 struct ParseResult {
     vector<ParsedCommand> commands;
     vector<string> errors;
 };
 
-//Convierte la lista de tokens en comandos con sus parametros
+//convierte la lista de tokens en comandos con sus parametros
 class CommandParser {
 public:
     ParseResult parse(const vector<Token>& tokens) const;
 
 private:
-    //Convierte nombres de comandos y parametros a minuscula
+    //convierte nombres de comandos y parametros a minuscula
     string toLower(const string& text) const;
 };
 

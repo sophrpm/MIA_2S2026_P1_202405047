@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mounted
+//maneja el comando mounted
 class MountedCommand {
 public:
 
-    //Ejecuta mounted
+    //ejecuta mounted
     ValidationResult execute(const ParsedCommand& command, const AppState& appState) const;
 };
 

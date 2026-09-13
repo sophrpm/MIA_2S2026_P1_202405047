@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mkusr
+//maneja el comando mkusr
 class MkUsrCommand {
 public:
 
-    //Ejecuta mkusr
+    //ejecuta mkusr
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

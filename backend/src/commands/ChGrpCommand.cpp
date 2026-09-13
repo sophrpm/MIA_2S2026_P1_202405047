@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta chgrp
+//ejecuta chgrp
 ValidationResult ChGrpCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta mkdir
+//ejecuta mkdir
 ValidationResult MkDirCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos
@@ -45,7 +45,7 @@ ValidationResult MkDirCommand::execute(const ParsedCommand& command, AppState& a
         return {false, "MKDIR: el valor de -path no puede estar vacio."};
     }
 
-    //verifica que sea ruta absoluta dentro de EXT2
+    //verifica que sea ruta absoluta dentro de ext2
     if (path[0] != '/'){
         return {false, "MKDIR: -path debe ser una ruta absoluta."};
     }

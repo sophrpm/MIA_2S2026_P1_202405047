@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta login
+//ejecuta login
 ValidationResult LoginCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

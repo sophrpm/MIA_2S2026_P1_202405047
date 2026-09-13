@@ -6,7 +6,7 @@
 using namespace std;
 
 
-//Info main del sistema EXT2
+//info main del sistema ext2
 struct SuperBlock {
     int s_filesystem_type = 2;
     int s_inodes_count = 0;
@@ -28,7 +28,7 @@ struct SuperBlock {
 };
 
 
-//Info de un arch o carpeta
+//info de un arch o carpeta
 struct Inode {
     int i_uid = -1;
     int i_gid = -1;
@@ -49,26 +49,26 @@ struct Inode {
 };
 
 
-//Entrada dentro de un bloque carpeta
+//entrada dentro de un bloque carpeta
 struct Content {
     char b_name[12] = {};
     int b_inodo = -1;
 };
 
 
-//Bloque para guardar archs o carpetas
+//bloque para guardar archs o carpetas
 struct FolderBlock {
     Content b_content[4];
 };
 
 
-//Bloque para guardar contenido de arch
+//bloque para guardar contenido de arch
 struct FileBlock {
     char b_content[64] = {};
 };
 
 
-//Bloque para apuntadores indirectos
+//bloque para apuntadores indirectos
 struct PointerBlock {
     int b_pointers[16];
 

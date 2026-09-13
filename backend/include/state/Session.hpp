@@ -6,7 +6,7 @@
 using namespace std;
 
 
-//Guarda los datos de la sesion actual
+//guarda los datos de la sesion actual
 struct Session {
     bool active = false;
     string user = "";

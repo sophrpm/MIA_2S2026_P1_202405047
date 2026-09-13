@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando rmusr
+//maneja el comando rmusr
 class RmUsrCommand {
 public:
 
-    //Ejecuta rmusr
+    //ejecuta rmusr
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

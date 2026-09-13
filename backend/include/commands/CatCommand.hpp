@@ -11,16 +11,16 @@
 using namespace std;
 
 
-//Maneja el comando cat
+//maneja el comando cat
 class CatCommand {
 public:
 
-    //Ejecuta cat
+    //ejecuta cat
     ValidationResult execute(const ParsedCommand& command, const AppState& appState) const;
 
 private:
 
-    //Obtiene los archivos enviados como -file1, -file2...
+    //obtiene los archivos enviados como -file1, -file2...
     vector<string> getFiles(const ParsedCommand& command) const;
 };
 

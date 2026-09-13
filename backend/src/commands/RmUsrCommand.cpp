@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta rmusr
+//ejecuta rmusr
 ValidationResult RmUsrCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

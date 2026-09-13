@@ -6,7 +6,7 @@
 using namespace std;
 
 
-//Guarda una particion montada en memoria
+//guarda una particion montada en memoria
 struct MountedPartition {
     string id = "";
     string path = "";

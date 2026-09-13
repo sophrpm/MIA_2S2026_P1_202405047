@@ -9,7 +9,7 @@
 using namespace std;
 
 
-//Maneja los discos .mia y sus particiones
+//maneja los discos .mia y sus particiones
 class DiskManager {
 public:
 
@@ -21,7 +21,7 @@ public:
 
     bool deletePartition(const string& path, const string& name, string& message) const;
 
-    //Aumenta o reduce tamaño de una particion
+    //aumenta o reduce tamaño de una particion
     bool resizePartition(const string& path, const string& name, int addBytes, string& message) const;
 
     bool readMBR(const string& path, MBR& mbr) const;
@@ -64,10 +64,10 @@ private:
 
     bool deleteLogical(const string& path, const string& name, string& message) const;
 
-    //Modifica primaria o extendida
+    //modifica primaria o extendida
     bool resizePrimaryOrExtended(const string& path, MBR& mbr, int partitionIndex, int addBytes, string& message) const;
 
-    //Modifica una particion logica
+    //modifica una particion logica
     bool resizeLogical(const string& path, const string& name, int addBytes, string& message) const;
 
     bool clearSpace(const string& path, int start, int size) const;

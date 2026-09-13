@@ -6,7 +6,7 @@
 using namespace std;
 
 
-//Ejecuta rep
+//ejecuta rep
 ValidationResult RepCommand::execute(const ParsedCommand& command, const AppState& appState) const {
 
     //verifica parametros permitidos

@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mkgrp
+//maneja el comando mkgrp
 class MkGrpCommand {
 public:
 
-    //Ejecuta mkgrp
+    //ejecuta mkgrp
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

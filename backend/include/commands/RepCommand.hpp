@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando rep
+//maneja el comando rep
 class RepCommand {
 public:
 
-    //Ejecuta rep
+    //ejecuta rep
     ValidationResult execute(const ParsedCommand& command, const AppState& appState) const;
 };
 

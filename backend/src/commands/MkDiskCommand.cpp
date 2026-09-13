@@ -8,7 +8,7 @@
 using namespace std;
 
 
-//Ejecuta mkdisk
+//ejecuta mkdisk
 ValidationResult MkDiskCommand::execute(const ParsedCommand& command) const {
 
     //verifica parametros permitidos
@@ -141,7 +141,7 @@ ValidationResult MkDiskCommand::execute(const ParsedCommand& command) const {
 }
 
 
-//Convierte tamaño y unidad a bytes
+//convierte tamaño y unidad a bytes
 long long MkDiskCommand::getSizeInBytes(int size, const string& unit) const {
     string upperUnit = StringUtils::toUpper(unit);
 
@@ -157,7 +157,7 @@ long long MkDiskCommand::getSizeInBytes(int size, const string& unit) const {
 }
 
 
-//Convierte fit al valor que usa el disco
+//convierte fit al valor que usa el disco
 char MkDiskCommand::getFit(const string& fit) const {
     string upperFit = StringUtils::toUpper(fit);
 

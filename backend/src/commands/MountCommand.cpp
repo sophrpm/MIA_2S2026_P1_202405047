@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta mount
+//ejecuta mount
 ValidationResult MountCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

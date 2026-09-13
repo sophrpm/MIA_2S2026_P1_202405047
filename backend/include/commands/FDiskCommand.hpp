@@ -9,29 +9,29 @@
 using namespace std;
 
 
-//Maneja el comando fdisk
+//maneja el comando fdisk
 class FDiskCommand {
 public:
 
-    //Ejecuta fdisk
+    //ejecuta fdisk
     ValidationResult execute(const ParsedCommand& command) const;
 
 
 private:
 
-    //Convierte tamaño y unidad a bytes
+    //convierte tamaño y unidad a bytes
     long long getSizeInBytes(int size, const string& unit) const;
 
-    //Obtiene tipo de particion
+    //obtiene tipo de particion
     char getType(const string& type) const;
 
-    //Obtiene fit de particion
+    //obtiene fit de particion
     char getFit(const string& fit) const;
 
-    //Verifica si se quiere eliminar
+    //verifica si se quiere eliminar
     bool isDeleteOperation(const ParsedCommand& command) const;
 
-    //Verifica si se quiere modificar tamaño
+    //verifica si se quiere modificar tamaño
     bool isAddOperation(const ParsedCommand& command) const;
 };
 

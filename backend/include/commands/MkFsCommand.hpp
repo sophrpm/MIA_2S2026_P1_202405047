@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mkfs
+//maneja el comando mkfs
 class MkFsCommand {
 public:
 
-    //Ejecuta mkfs
+    //ejecuta mkfs
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

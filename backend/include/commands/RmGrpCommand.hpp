@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando rmgrp
+//maneja el comando rmgrp
 class RmGrpCommand {
 public:
 
-    //Ejecuta rmgrp
+    //ejecuta rmgrp
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

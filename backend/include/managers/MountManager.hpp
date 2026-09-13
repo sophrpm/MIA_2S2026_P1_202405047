@@ -11,34 +11,34 @@ using namespace std;
 struct AppState;
 
 
-//Maneja las particiones montadas
+//maneja las particiones montadas
 class MountManager {
 public:
 
-    //Monta una particion primaria
+    //monta una particion primaria
     bool mountPartition(const string& path, const string& name, AppState& appState, string& message) const;
 
-    //Busca una particion montada por id
+    //busca una particion montada por id
     bool getMountedPartition(const AppState& appState, const string& id, MountedPartition& mountedPartition) const;
 
-    //Devuelve las particiones montadas
+    //devuelve las particiones montadas
     vector<MountedPartition> getMountedPartitions(const AppState& appState) const;
 
-    //Verifica si ya esta montada
+    //verifica si ya esta montada
     bool isMounted(const AppState& appState, const string& path, const string& name) const;
 
 private:
 
-    //Obtiene la letra que le corresponde al disco
+    //obtiene la letra que le corresponde al disco
     char getDiskLetter(const AppState& appState, const string& path) const;
 
-    //Obtiene el siguiente correlativo del disco
+    //obtiene el siguiente correlativo del disco
     int getNextCorrelative(const AppState& appState, const string& path) const;
 
-    //Crea el id de la particion
+    //crea el id de la particion
     string createMountId(const string& carnet, int correlative, char diskLetter) const;
 
-    //Guarda los datos de montaje dentro del disco
+    //guarda los datos de montaje dentro del disco
     bool updatePartitionMount(const string& path, const string& name, int correlative, const string& id) const;
 };
 

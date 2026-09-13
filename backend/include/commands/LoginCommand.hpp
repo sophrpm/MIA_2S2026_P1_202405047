@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando login
+//maneja el comando login
 class LoginCommand {
 public:
 
-    //Ejecuta login
+    //ejecuta login
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

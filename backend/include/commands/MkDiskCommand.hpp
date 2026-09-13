@@ -9,19 +9,19 @@
 using namespace std;
 
 
-//Maneja el comando mkdisk
+//maneja el comando mkdisk
 class MkDiskCommand {
 public:
 
-    //Ejecuta mkdisk
+    //ejecuta mkdisk
     ValidationResult execute(const ParsedCommand& command) const;
 
 private:
 
-    //Convierte tamaño y unidad a bytes
+    //convierte tamaño y unidad a bytes
     long long getSizeInBytes(int size, const string& unit) const;
 
-    //Convierte fit al valor que usa el disco
+    //convierte fit al valor que usa el disco
     char getFit(const string& fit) const;
 };
 

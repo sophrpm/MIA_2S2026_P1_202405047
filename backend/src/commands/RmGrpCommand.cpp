@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta rmgrp
+//ejecuta rmgrp
 ValidationResult RmGrpCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

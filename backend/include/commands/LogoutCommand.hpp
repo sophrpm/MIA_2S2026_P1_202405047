@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando logout
+//maneja el comando logout
 class LogoutCommand {
 public:
 
-    //Ejecuta logout
+    //ejecuta logout
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

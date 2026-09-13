@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta mkusr
+//ejecuta mkusr
 ValidationResult MkUsrCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

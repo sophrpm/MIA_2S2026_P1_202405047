@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta rmdisk
+//ejecuta rmdisk
 ValidationResult RmDiskCommand::execute(const ParsedCommand& command) const {
 
     //verifica parametros permitidos

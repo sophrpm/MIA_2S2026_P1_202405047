@@ -3,7 +3,7 @@
 using namespace std;
 
 
-//Ejecuta mounted
+//ejecuta mounted
 ValidationResult MountedCommand::execute(const ParsedCommand& command, const AppState& appState) const {
 
     //mounted no recibe parametros

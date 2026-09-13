@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta mkgrp
+//ejecuta mkgrp
 ValidationResult MkGrpCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //verifica parametros permitidos

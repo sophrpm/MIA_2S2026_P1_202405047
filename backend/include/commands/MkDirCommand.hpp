@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando mkdir
+//maneja el comando mkdir
 class MkDirCommand {
 public:
 
-    //Ejecuta mkdir
+    //ejecuta mkdir
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 

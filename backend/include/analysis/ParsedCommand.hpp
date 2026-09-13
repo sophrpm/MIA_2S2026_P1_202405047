@@ -6,23 +6,23 @@
 
 using namespace std;
 
-//Representa un parametro encontrado dentro de un comando
+//representa un parametro encontrado dentro de un comando
 struct ParsedParam {
     string name;
     string value;
     bool hasValue;
 };
 
-//Representa un comando que ya fue procesado por el parser
+//representa un comando que ya fue procesado por el parser
 struct ParsedCommand {
     string name;
     vector<ParsedParam> params;
 
-    //Se utiliza cuando la linea corresponde a un comentario
+    //se utiliza cuando la linea corresponde a un comentario
     bool isComment = false;
     string commentText = "";
 
-    //Verifica si el comando contiene un parametro
+    //verifica si el comando contiene un parametro
     bool hasParam(const string& parameterName) const {
         for (const ParsedParam& param : params) {
             if (param.name == parameterName) {
@@ -33,7 +33,7 @@ struct ParsedCommand {
         return false;
     }
 
-    //Devuelve el valor de un parametro
+    //devuelve el valor de un parametro
     string getParam(const string& parameterName) const {
         for (const ParsedParam& param : params) {
             if (param.name == parameterName) {
@@ -44,7 +44,7 @@ struct ParsedCommand {
         return "";
     }
 
-    //Indica si un parametro fue escrito con un valor
+    //indica si un parametro fue escrito con un valor
     bool paramHasValue(const string& parameterName) const {
         for (const ParsedParam& param : params) {
             if (param.name == parameterName) {
@@ -55,7 +55,7 @@ struct ParsedCommand {
         return false;
     }
 
-    //Cuenta cuantas veces aparece un parametro
+    //cuenta cuantas veces aparece un parametro
     int countParam(const string& parameterName) const {
         int amount = 0;
 
@@ -68,7 +68,7 @@ struct ParsedCommand {
         return amount;
     }
 
-    //Facilita la validacion de parametros repetidos
+    //facilita la validacion de parametros repetidos
     bool hasRepeatedParam(const string& parameterName) const {
         return countParam(parameterName) > 1;
     }

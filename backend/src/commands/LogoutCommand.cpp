@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Ejecuta logout
+//ejecuta logout
 ValidationResult LogoutCommand::execute(const ParsedCommand& command, AppState& appState) const {
 
     //logout no recibe parametros

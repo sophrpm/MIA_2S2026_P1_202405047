@@ -8,11 +8,11 @@
 using namespace std;
 
 
-//Maneja el comando chgrp
+//maneja el comando chgrp
 class ChGrpCommand {
 public:
 
-    //Ejecuta chgrp
+    //ejecuta chgrp
     ValidationResult execute(const ParsedCommand& command, AppState& appState) const;
 };
 
