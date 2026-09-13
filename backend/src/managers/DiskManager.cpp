@@ -13,7 +13,7 @@
 using namespace std;
 
 
-//Crea disco y escribe el MBR
+//crea disco y escribe el mbr
 bool DiskManager::createDisk(const string& path, int sizeBytes, char fit, string& message) const {
     if (sizeBytes <= static_cast<int>(sizeof(MBR))){
         message = "Error: el tamaño del disco es demasiado pequeño.";
@@ -70,7 +70,7 @@ bool DiskManager::createDisk(const string& path, int sizeBytes, char fit, string
     file.close();
 
 
-    //crea el MBR al inicio del disco
+    //crea el mbr al inicio del disco
     MBR mbr;
 
     mbr.mbr_tamano = sizeBytes;
@@ -98,7 +98,7 @@ bool DiskManager::createDisk(const string& path, int sizeBytes, char fit, string
 }
 
 
-//Elimina un disco existente
+//elimina un disco existente
 bool DiskManager::removeDisk(const string& path, string& message) const {
     if (!diskExists(path)){
         message = "Error: el disco indicado no existe.";
@@ -120,7 +120,7 @@ bool DiskManager::removeDisk(const string& path, string& message) const {
 }
 
 
-//Crea particion primaria, extendida o logica
+//crea particion primaria, extendida o logica
 bool DiskManager::createPartition(const string& path, int sizeBytes, char type, char fit, const string& name, string& message) const {
     if (!diskExists(path)){
         message = "Error: el disco indicado no existe.";
@@ -179,7 +179,7 @@ bool DiskManager::createPartition(const string& path, int sizeBytes, char type, 
 }
 
 
-//Elimina una particion
+//elimina una particion
 bool DiskManager::deletePartition(const string& path, const string& name, string& message) const {
     if (!diskExists(path)){
         message = "Error: el disco indicado no existe.";
@@ -218,7 +218,7 @@ bool DiskManager::deletePartition(const string& path, const string& name, string
 }
 
 
-//Modifica el tamaño de una particion
+//modifica el tamaño de una particion
 bool DiskManager::resizePartition(const string& path, const string& name, int addBytes, string& message) const {
     if (!diskExists(path)){
         message = "Error: el disco indicado no existe.";
@@ -262,7 +262,7 @@ bool DiskManager::resizePartition(const string& path, const string& name, int ad
 }
 
 
-//Lee el MBR del disco
+//lee el mbr del disco
 bool DiskManager::readMBR(const string& path, MBR& mbr) const {
     if (!diskExists(path)){
         return false;
@@ -274,17 +274,34 @@ bool DiskManager::readMBR(const string& path, MBR& mbr) const {
         return false;
     }
 
-    return BinaryUtils::readStruct(path, 0, mbr);
+    if (!BinaryUtils::readStruct(path, 0, mbr) || mbr.mbr_tamano != fileSize){
+        return false;
+    }
+    for (int i = 0; i < 4; i++){
+        const Partition& partition = mbr.mbr_partitions[i];
+        if (partition.part_s == 0) continue;
+        long long end = static_cast<long long>(partition.part_start) + partition.part_s;
+        if (partition.part_s < 0 || partition.part_start < static_cast<int>(sizeof(MBR)) || end > fileSize){
+            return false;
+        }
+        for (int j = 0; j < i; j++){
+            const Partition& previous = mbr.mbr_partitions[j];
+            if (previous.part_s > 0 && partition.part_start < static_cast<long long>(previous.part_start) + previous.part_s && previous.part_start < end){
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 
-//Escribe el MBR al inicio del disco
+//escribe el mbr al inicio del disco
 bool DiskManager::writeMBR(const string& path, const MBR& mbr) const {
     return BinaryUtils::writeStruct(path, 0, mbr);
 }
 
 
-//Busca primaria o extendida por nombre
+//busca primaria o extendida por nombre
 int DiskManager::findPartition(const MBR& mbr, const string& name) const {
     for (int partitionPos = 0; partitionPos < 4; partitionPos++){
         const Partition& partition = mbr.mbr_partitions[partitionPos];
@@ -304,7 +321,7 @@ int DiskManager::findPartition(const MBR& mbr, const string& name) const {
 }
 
 
-//Busca una particion logica por nombre
+//busca una particion logica por nombre
 bool DiskManager::findLogicalPartition(const string& path, const string& name, EBR& ebr, int& ebrPosition) const {
     MBR mbr;
 
@@ -324,7 +341,7 @@ bool DiskManager::findLogicalPartition(const string& path, const string& name, E
     int extendedEnd = extended.part_start + extended.part_s;
     int currentPosition = extendedStart;
 
-    //recorre la cadena enlazada de EBR
+    //recorre la cadena enlazada de ebr
     while (currentPosition >= extendedStart && currentPosition + static_cast<int>(sizeof(EBR)) <= extendedEnd){
         EBR currentEBR;
 
@@ -356,19 +373,19 @@ bool DiskManager::findLogicalPartition(const string& path, const string& name, E
 }
 
 
-//Verifica si existe el archivo
+//verifica si existe el archivo
 bool DiskManager::diskExists(const string& path) const {
     return BinaryUtils::fileExists(path);
 }
 
 
-//Verifica extension .mia
+//verifica extension .mia
 bool DiskManager::validExtension(const string& path) const {
     return PathUtils::hasExtension(path, "mia");
 }
 
 
-//Verifica nombres de primarias, extendida y logicas
+//verifica nombres de primarias, extendida y logicas
 bool DiskManager::partitionNameExists(const string& path, const MBR& mbr, const string& name) const {
     if (findPartition(mbr, name) != -1){
         return true;
@@ -381,7 +398,7 @@ bool DiskManager::partitionNameExists(const string& path, const MBR& mbr, const 
 }
 
 
-//Busca la particion extendida
+//busca la particion extendida
 int DiskManager::findExtendedPartition(const MBR& mbr) const {
     for (int partitionPos = 0; partitionPos < 4; partitionPos++){
         const Partition& partition = mbr.mbr_partitions[partitionPos];
@@ -395,7 +412,7 @@ int DiskManager::findExtendedPartition(const MBR& mbr) const {
 }
 
 
-//Busca una posicion libre en las cuatro entradas del MBR
+//busca una posicion libre en las cuatro entradas del mbr
 int DiskManager::findFreePartitionSlot(const MBR& mbr) const {
     for (int partitionPos = 0; partitionPos < 4; partitionPos++){
         if (mbr.mbr_partitions[partitionPos].part_s <= 0){
@@ -407,7 +424,7 @@ int DiskManager::findFreePartitionSlot(const MBR& mbr) const {
 }
 
 
-//Obtiene los espacios libres del disco
+//obtiene los espacios libres del disco
 vector<DiskManager::FreeSpace> DiskManager::getDiskFreeSpaces(const MBR& mbr) const {
     vector<Partition> usedPartitions;
     vector<FreeSpace> freeSpaces;
@@ -424,7 +441,7 @@ vector<DiskManager::FreeSpace> DiskManager::getDiskFreeSpaces(const MBR& mbr) co
         return firstPartition.part_start < secondPartition.part_start;
     });
 
-    //el primer espacio disponible empieza despues del MBR
+    //el primer espacio disponible empieza despues del mbr
     int currentStart = static_cast<int>(sizeof(MBR));
 
     //busca espacios entre particiones
@@ -449,11 +466,11 @@ vector<DiskManager::FreeSpace> DiskManager::getDiskFreeSpaces(const MBR& mbr) co
 }
 
 
-//Escoge espacio segun FF, BF o WF
+//escoge espacio segun ff, bf o wf
 int DiskManager::chooseSpace(const vector<FreeSpace>& freeSpaces, int requiredSize, char fit) const {
     int selectedIndex = -1;
 
-    //First Fit
+    //first fit
     if (fit == 'F'){
         for (size_t spacePos = 0; spacePos < freeSpaces.size(); spacePos++){
             if (freeSpaces[spacePos].size >= requiredSize){
@@ -464,7 +481,7 @@ int DiskManager::chooseSpace(const vector<FreeSpace>& freeSpaces, int requiredSi
         return -1;
     }
 
-    //Best Fit
+    //best fit
     if (fit == 'B'){
         for (size_t spacePos = 0; spacePos < freeSpaces.size(); spacePos++){
             if (freeSpaces[spacePos].size < requiredSize){
@@ -479,7 +496,7 @@ int DiskManager::chooseSpace(const vector<FreeSpace>& freeSpaces, int requiredSi
         return selectedIndex;
     }
 
-    //Worst Fit
+    //worst fit
     if (fit == 'W'){
         for (size_t spacePos = 0; spacePos < freeSpaces.size(); spacePos++){
             if (freeSpaces[spacePos].size < requiredSize){
@@ -498,7 +515,7 @@ int DiskManager::chooseSpace(const vector<FreeSpace>& freeSpaces, int requiredSi
 }
 
 
-//Crea primaria o extendida
+//crea primaria o extendida
 bool DiskManager::createPrimaryOrExtended(const string& path, MBR& mbr, int sizeBytes, char type, char fit, const string& name, string& message) const {
     int freeSlot = findFreePartitionSlot(mbr);
 
@@ -514,7 +531,7 @@ bool DiskManager::createPrimaryOrExtended(const string& path, MBR& mbr, int size
         return false;
     }
 
-    //la extendida debe guardar por lo menos el primer EBR
+    //la extendida debe guardar por lo menos el primer ebr
     if (type == 'E' && sizeBytes <= static_cast<int>(sizeof(EBR))){
         message = "Error: la particion extendida es demasiado pequeña para almacenar un EBR.";
         return false;
@@ -544,13 +561,13 @@ bool DiskManager::createPrimaryOrExtended(const string& path, MBR& mbr, int size
 
     mbr.mbr_partitions[freeSlot] = partition;
 
-    //solo se escribe el objeto Partition dentro del MBR
+    //solo se escribe el objeto partition dentro del mbr
     if (!writeMBR(path, mbr)){
         message = "Error: no se pudo guardar la nueva particion en el MBR.";
         return false;
     }
 
-    //al crear una extendida se crea su primer EBR
+    //al crear una extendida se crea su primer ebr
     if (type == 'E'){
         if (!createFirstEBR(path, partition)){
             mbr.mbr_partitions[freeSlot] = Partition();
@@ -566,7 +583,7 @@ bool DiskManager::createPrimaryOrExtended(const string& path, MBR& mbr, int size
 }
 
 
-//Crea una particion logica dentro de la extendida
+//crea una particion logica dentro de la extendida
 bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, char fit, const string& name, string& message) const {
     int extendedIndex = findExtendedPartition(mbr);
 
@@ -580,7 +597,11 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
     int extendedStart = extended.part_start;
     int extendedEnd = extended.part_start + extended.part_s;
 
-    //cada logica necesita su EBR y el espacio logico
+    //cada logica necesita su ebr y el espacio logico
+    if (sizeBytes > extended.part_s - static_cast<int>(sizeof(EBR))){
+        message = "Error: la particion logica supera el espacio de la extendida.";
+        return false;
+    }
     int requiredSize = static_cast<int>(sizeof(EBR)) + sizeBytes;
 
     if (requiredSize > extended.part_s){
@@ -593,7 +614,7 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
 
     int currentPosition = extendedStart;
 
-    //lee todos los EBR enlazados
+    //lee todos los ebr enlazados
     while (currentPosition >= extendedStart && currentPosition + static_cast<int>(sizeof(EBR)) <= extendedEnd){
         EBR currentEBR;
 
@@ -624,7 +645,7 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
 
     vector<FreeSpace> freeSpaces;
 
-    //si el primer EBR esta vacio puede reutilizarse
+    //si el primer ebr esta vacio puede reutilizarse
     if (ebrs[0].part_s <= 0){
         int nextPosition = ebrs[0].part_next == -1 ? extendedEnd : ebrs[0].part_next;
         int availableSize = nextPosition - extendedStart;
@@ -636,7 +657,7 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
 
     //busca huecos despues de cada logica existente
     for (size_t ebrPos = 0; ebrPos < ebrs.size(); ebrPos++){
-        //el primer EBR vacio ya fue agregado arriba
+        //el primer ebr vacio ya fue agregado arriba
         if (ebrPos == 0 && ebrs[ebrPos].part_s <= 0){
             continue;
         }
@@ -673,7 +694,7 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
     BinaryUtils::copyToFixedChar(newEBR.part_name, 16, name);
 
 
-    //reutiliza el EBR inicial si estaba vacio
+    //reutiliza el ebr inicial si estaba vacio
     if (newEBRPosition == extendedStart && ebrs[0].part_s <= 0){
         newEBR.part_next = ebrs[0].part_next;
 
@@ -689,7 +710,7 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
 
     int previousIndex = -1;
 
-    //busca el EBR que debe apuntar hacia el nuevo
+    //busca el ebr que debe apuntar hacia el nuevo
     for (size_t ebrPos = 0; ebrPos < ebrPositions.size(); ebrPos++){
         int nextPosition = ebrs[ebrPos].part_next;
 
@@ -714,7 +735,7 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
     EBR previousEBR = ebrs[previousIndex];
     previousEBR.part_next = newEBRPosition;
 
-    //primero escribe el nuevo EBR
+    //primero escribe el nuevo ebr
     if (!BinaryUtils::writeStruct(path, newEBRPosition, newEBR)){
         message = "Error: no se pudo escribir la nueva particion logica.";
         return false;
@@ -733,20 +754,20 @@ bool DiskManager::createLogical(const string& path, MBR& mbr, int sizeBytes, cha
 }
 
 
-//Crea el primer EBR de una extendida
+//crea el primer ebr de una extendida
 bool DiskManager::createFirstEBR(const string& path, const Partition& extendedPartition) const {
     EBR ebr;
 
     ebr.part_mount = '0';
     ebr.part_fit = extendedPartition.part_fit;
 
-    //el EBR esta al inicio y la parte logica iria despues
+    //el ebr esta al inicio y la parte logica iria despues
     ebr.part_start = extendedPartition.part_start + static_cast<int>(sizeof(EBR));
 
     //todavia no existe una logica
     ebr.part_s = 0;
 
-    //no existe siguiente EBR
+    //no existe siguiente ebr
     ebr.part_next = -1;
 
     BinaryUtils::copyToFixedChar(ebr.part_name, 16, "");
@@ -755,7 +776,7 @@ bool DiskManager::createFirstEBR(const string& path, const Partition& extendedPa
 }
 
 
-//Elimina primaria o extendida
+//elimina primaria o extendida
 bool DiskManager::deletePrimaryOrExtended(const string& path, MBR& mbr, int partitionIndex, string& message) const {
     if (partitionIndex < 0 || partitionIndex >= 4){
         message = "Error: posicion de particion no valida.";
@@ -782,7 +803,7 @@ bool DiskManager::deletePrimaryOrExtended(const string& path, MBR& mbr, int part
         return false;
     }
 
-    //el objeto Partition desaparece del MBR
+    //el objeto partition desaparece del mbr
     mbr.mbr_partitions[partitionIndex] = Partition();
 
     if (!writeMBR(path, mbr)){
@@ -795,7 +816,7 @@ bool DiskManager::deletePrimaryOrExtended(const string& path, MBR& mbr, int part
 }
 
 
-//Elimina una particion logica
+//elimina una particion logica
 bool DiskManager::deleteLogical(const string& path, const string& name, string& message) const {
     MBR mbr;
 
@@ -822,7 +843,7 @@ bool DiskManager::deleteLogical(const string& path, const string& name, string& 
     EBR previousEBR;
 
 
-    //recorre la cadena de EBR
+    //recorre la cadena de ebr
     while (currentPosition >= extendedStart && currentPosition + static_cast<int>(sizeof(EBR)) <= extendedEnd){
         EBR currentEBR;
 
@@ -841,10 +862,8 @@ bool DiskManager::deleteLogical(const string& path, const string& name, string& 
             }
 
 
-            //si es la primera deja el EBR inicial vacio
+            //si es la primera deja el ebr inicial vacio
             if (currentPosition == extendedStart){
-                int logicalEnd = currentEBR.part_start + currentEBR.part_s;
-
                 if (!clearSpace(path, currentEBR.part_start, currentEBR.part_s)){
                     message = "Error: no se pudo limpiar la particion logica.";
                     return false;
@@ -882,7 +901,7 @@ bool DiskManager::deleteLogical(const string& path, const string& name, string& 
             int logicalEnd = currentEBR.part_start + currentEBR.part_s;
             int clearSize = logicalEnd - currentPosition;
 
-            //borra EBR y espacio de la logica
+            //borra ebr y espacio de la logica
             if (!clearSpace(path, currentPosition, clearSize)){
                 BinaryUtils::writeStruct(path, previousPosition, previousEBR);
 
@@ -914,7 +933,7 @@ bool DiskManager::deleteLogical(const string& path, const string& name, string& 
 }
 
 
-//Modifica primaria o extendida
+//modifica primaria o extendida
 bool DiskManager::resizePrimaryOrExtended(const string& path, MBR& mbr, int partitionIndex, int addBytes, string& message) const {
     if (partitionIndex < 0 || partitionIndex >= 4){
         message = "Error: posicion de particion no valida.";
@@ -936,7 +955,7 @@ bool DiskManager::resizePrimaryOrExtended(const string& path, MBR& mbr, int part
     string partitionName = BinaryUtils::fixedCharToString(partition.part_name, 16);
 
 
-    //AUMENTAR
+    //aumentar
     if (addBytes > 0){
         long long partitionEnd = static_cast<long long>(partition.part_start) + partition.part_s;
         long long nextStart = mbr.mbr_tamano;
@@ -986,7 +1005,7 @@ bool DiskManager::resizePrimaryOrExtended(const string& path, MBR& mbr, int part
     }
 
 
-    //REDUCIR
+    //reducir
     long long removeBytes = -(static_cast<long long>(addBytes));
     long long newSize = static_cast<long long>(partition.part_s) - removeBytes;
 
@@ -996,7 +1015,7 @@ bool DiskManager::resizePrimaryOrExtended(const string& path, MBR& mbr, int part
     }
 
 
-    //una extendida no puede cortar sus EBR o logicas
+    //una extendida no puede cortar sus ebr o logicas
     if (partition.part_type == 'E'){
         int extendedStart = partition.part_start;
         int extendedEnd = partition.part_start + partition.part_s;
@@ -1012,7 +1031,7 @@ bool DiskManager::resizePrimaryOrExtended(const string& path, MBR& mbr, int part
                 return false;
             }
 
-            //el EBR tambien ocupa espacio
+            //el ebr tambien ocupa espacio
             int ebrEnd = currentPosition + static_cast<int>(sizeof(EBR));
 
             if (ebrEnd > minimumEnd){
@@ -1075,7 +1094,7 @@ bool DiskManager::resizePrimaryOrExtended(const string& path, MBR& mbr, int part
 }
 
 
-//Modifica una particion logica
+//modifica una particion logica
 bool DiskManager::resizeLogical(const string& path, const string& name, int addBytes, string& message) const {
     MBR mbr;
 
@@ -1109,13 +1128,13 @@ bool DiskManager::resizeLogical(const string& path, const string& name, int addB
     }
 
 
-    //AUMENTAR
+    //aumentar
     if (addBytes > 0){
         long long logicalEnd = static_cast<long long>(logicalPartition.part_start) + logicalPartition.part_s;
 
         long long nextStart = extendedEnd;
 
-        //el siguiente EBR limita hasta donde puede crecer
+        //el siguiente ebr limita hasta donde puede crecer
         if (logicalPartition.part_next != -1){
             nextStart = logicalPartition.part_next;
         }
@@ -1146,7 +1165,7 @@ bool DiskManager::resizeLogical(const string& path, const string& name, int addB
     }
 
 
-    //REDUCIR
+    //reducir
     long long removeBytes = -(static_cast<long long>(addBytes));
     long long newSize = static_cast<long long>(logicalPartition.part_s) - removeBytes;
 
@@ -1182,7 +1201,7 @@ bool DiskManager::resizeLogical(const string& path, const string& name, int addB
 }
 
 
-//Llena una parte del disco con ceros
+//llena una parte del disco con ceros
 bool DiskManager::clearSpace(const string& path, int start, int size) const {
     if (start < 0 || size < 0){
         return false;

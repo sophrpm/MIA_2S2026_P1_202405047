@@ -4,13 +4,14 @@
 #include <fstream>
 
 #include "utils/BinaryUtils.hpp"
+#include "managers/DiskManager.hpp"
 
 using namespace std;
 
 
-//Formatea una particion como EXT2
+//formatea una particion como ext2
 bool FileSystemManager::formatExt2(const string& path, int partitionStart, int partitionSize, string& message) const {
-    if (partitionStart < 0 || partitionSize <= static_cast<int>(sizeof(SuperBlock))){
+    if (partitionStart < 0 || partitionSize <= static_cast<int>(sizeof(SuperBlock)) || static_cast<long long>(partitionStart) + partitionSize > BinaryUtils::getFileSize(path)){
         message = "Error: la particion no tiene un tamaño valido.";
         return false;
     }
@@ -77,19 +78,44 @@ bool FileSystemManager::formatExt2(const string& path, int partitionStart, int p
 }
 
 
-//Lee el superbloque de una particion
+//lee el superbloque de una particion
 bool FileSystemManager::readSuperBlock(const string& path, int partitionStart, SuperBlock& superBlock) const {
-    return BinaryUtils::readStruct(path, partitionStart, superBlock);
+    if (!BinaryUtils::readStruct(path, partitionStart, superBlock)){
+        return false;
+    }
+    if (superBlock.s_magic != 0xEF53){
+        return true;
+    }
+    DiskManager diskManager;
+    MBR mbr;
+    if (!diskManager.readMBR(path, mbr)){
+        return false;
+    }
+    int partitionSize = 0;
+    for (const Partition& partition : mbr.mbr_partitions){
+        if (partition.part_type == 'P' && partition.part_start == partitionStart){
+            partitionSize = partition.part_s;
+        }
+    }
+    int count = calculateInodes(partitionSize);
+    long long inodeStart = static_cast<long long>(partitionStart) + sizeof(SuperBlock) + 4LL * count;
+    long long blockStart = inodeStart + static_cast<long long>(count) * sizeof(Inode);
+    bool validCounts = count >= 2 && superBlock.s_filesystem_type == 2 && superBlock.s_inodes_count == count && superBlock.s_blocks_count == 3 * count;
+    bool validSizes = superBlock.s_inode_s == static_cast<int>(sizeof(Inode)) && superBlock.s_block_s == 64;
+    bool validBitmaps = superBlock.s_bm_inode_start == partitionStart + static_cast<int>(sizeof(SuperBlock)) && superBlock.s_bm_block_start == superBlock.s_bm_inode_start + count;
+    bool validTables = superBlock.s_inode_start == inodeStart && superBlock.s_block_start == blockStart;
+    return validCounts && validSizes && validBitmaps && validTables;
+
 }
 
 
-//Escribe cambios del superbloque
+//escribe cambios del superbloque
 bool FileSystemManager::writeSuperBlock(const string& path, int partitionStart, const SuperBlock& superBlock) const {
     return BinaryUtils::writeStruct(path, partitionStart, superBlock);
 }
 
 
-//Lee un inodo por su posicion
+//lee un inodo por su posicion
 bool FileSystemManager::readInode(const string& path, const SuperBlock& superBlock, int inodeIndex, Inode& inode) const {
     if (inodeIndex < 0 || inodeIndex >= superBlock.s_inodes_count){
         return false;
@@ -101,7 +127,7 @@ bool FileSystemManager::readInode(const string& path, const SuperBlock& superBlo
 }
 
 
-//Escribe un inodo por su posicion
+//escribe un inodo por su posicion
 bool FileSystemManager::writeInode(const string& path, const SuperBlock& superBlock, int inodeIndex, const Inode& inode) const {
     if (inodeIndex < 0 || inodeIndex >= superBlock.s_inodes_count){
         return false;
@@ -113,7 +139,7 @@ bool FileSystemManager::writeInode(const string& path, const SuperBlock& superBl
 }
 
 
-//Lee un bloque carpeta
+//lee un bloque carpeta
 bool FileSystemManager::readFolderBlock(const string& path, const SuperBlock& superBlock, int blockIndex, FolderBlock& folderBlock) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -125,7 +151,7 @@ bool FileSystemManager::readFolderBlock(const string& path, const SuperBlock& su
 }
 
 
-//Escribe un bloque carpeta
+//escribe un bloque carpeta
 bool FileSystemManager::writeFolderBlock(const string& path, const SuperBlock& superBlock, int blockIndex, const FolderBlock& folderBlock) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -137,7 +163,7 @@ bool FileSystemManager::writeFolderBlock(const string& path, const SuperBlock& s
 }
 
 
-//Lee un bloque archivo
+//lee un bloque archivo
 bool FileSystemManager::readFileBlock(const string& path, const SuperBlock& superBlock, int blockIndex, FileBlock& fileBlock) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -149,7 +175,7 @@ bool FileSystemManager::readFileBlock(const string& path, const SuperBlock& supe
 }
 
 
-//Escribe un bloque archivo
+//escribe un bloque archivo
 bool FileSystemManager::writeFileBlock(const string& path, const SuperBlock& superBlock, int blockIndex, const FileBlock& fileBlock) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -161,7 +187,7 @@ bool FileSystemManager::writeFileBlock(const string& path, const SuperBlock& sup
 }
 
 
-//Lee un bloque de apuntadores
+//lee un bloque de apuntadores
 bool FileSystemManager::readPointerBlock(const string& path, const SuperBlock& superBlock, int blockIndex, PointerBlock& pointerBlock) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -173,7 +199,7 @@ bool FileSystemManager::readPointerBlock(const string& path, const SuperBlock& s
 }
 
 
-//Escribe un bloque de apuntadores
+//escribe un bloque de apuntadores
 bool FileSystemManager::writePointerBlock(const string& path, const SuperBlock& superBlock, int blockIndex, const PointerBlock& pointerBlock) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -185,15 +211,15 @@ bool FileSystemManager::writePointerBlock(const string& path, const SuperBlock& 
 }
 
 
-//Busca un inodo libre en bitmap
+//busca un inodo libre en bitmap
 int FileSystemManager::findFreeInode(const string& path, const SuperBlock& superBlock) const {
+    ifstream file(path, ios::binary);
+    file.seekg(superBlock.s_bm_inode_start);
     for (int inodeIndex = 0; inodeIndex < superBlock.s_inodes_count; inodeIndex++){
         char value;
-
-        if (!readInodeBitmap(path, superBlock, inodeIndex, value)){
+        if (!file.get(value)){
             return -1;
         }
-
         if (value == '0'){
             return inodeIndex;
         }
@@ -203,15 +229,15 @@ int FileSystemManager::findFreeInode(const string& path, const SuperBlock& super
 }
 
 
-//Busca un bloque libre en bitmap
+//busca un bloque libre en bitmap
 int FileSystemManager::findFreeBlock(const string& path, const SuperBlock& superBlock) const {
+    ifstream file(path, ios::binary);
+    file.seekg(superBlock.s_bm_block_start);
     for (int blockIndex = 0; blockIndex < superBlock.s_blocks_count; blockIndex++){
         char value;
-
-        if (!readBlockBitmap(path, superBlock, blockIndex, value)){
+        if (!file.get(value)){
             return -1;
         }
-
         if (value == '0'){
             return blockIndex;
         }
@@ -221,7 +247,7 @@ int FileSystemManager::findFreeBlock(const string& path, const SuperBlock& super
 }
 
 
-//Reserva un inodo libre
+//reserva un inodo libre
 int FileSystemManager::allocateInode(const string& path, int partitionStart, SuperBlock& superBlock) const {
     int inodeIndex = findFreeInode(path, superBlock);
 
@@ -251,7 +277,7 @@ int FileSystemManager::allocateInode(const string& path, int partitionStart, Sup
 }
 
 
-//Reserva un bloque libre
+//reserva un bloque libre
 int FileSystemManager::allocateBlock(const string& path, int partitionStart, SuperBlock& superBlock) const {
     int blockIndex = findFreeBlock(path, superBlock);
 
@@ -281,7 +307,7 @@ int FileSystemManager::allocateBlock(const string& path, int partitionStart, Sup
 }
 
 
-//Libera un inodo
+//libera un inodo
 bool FileSystemManager::freeInode(const string& path, int partitionStart, SuperBlock& superBlock, int inodeIndex) const {
     if (inodeIndex < 0 || inodeIndex >= superBlock.s_inodes_count){
         return false;
@@ -318,7 +344,7 @@ bool FileSystemManager::freeInode(const string& path, int partitionStart, SuperB
 }
 
 
-//Libera un bloque
+//libera un bloque
 bool FileSystemManager::freeBlock(const string& path, int partitionStart, SuperBlock& superBlock, int blockIndex) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -355,7 +381,7 @@ bool FileSystemManager::freeBlock(const string& path, int partitionStart, SuperB
 }
 
 
-//Lee valor del bitmap de inodos
+//lee valor del bitmap de inodos
 bool FileSystemManager::readInodeBitmap(const string& path, const SuperBlock& superBlock, int inodeIndex, char& value) const {
     if (inodeIndex < 0 || inodeIndex >= superBlock.s_inodes_count){
         return false;
@@ -384,7 +410,7 @@ bool FileSystemManager::readInodeBitmap(const string& path, const SuperBlock& su
 }
 
 
-//Lee valor del bitmap de bloques
+//lee valor del bitmap de bloques
 bool FileSystemManager::readBlockBitmap(const string& path, const SuperBlock& superBlock, int blockIndex, char& value) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -413,11 +439,11 @@ bool FileSystemManager::readBlockBitmap(const string& path, const SuperBlock& su
 }
 
 
-//Calcula cantidad de inodos para EXT2
+//calcula cantidad de inodos para ext2
 int FileSystemManager::calculateInodes(int partitionSize) const {
     int availableSpace = partitionSize - static_cast<int>(sizeof(SuperBlock));
 
-    //n + 3n + n*sizeof(Inode) + 3n*sizeof(Block)
+    //n + 3n + n*sizeof(inode) + 3n*sizeof(block)
     int structureSize = 4 + static_cast<int>(sizeof(Inode)) + 3 * 64;
 
     if (availableSpace <= 0 || structureSize <= 0){
@@ -428,8 +454,8 @@ int FileSystemManager::calculateInodes(int partitionSize) const {
 }
 
 
-//Inicia el superbloque
-SuperBlock FileSystemManager::createSuperBlock(int partitionStart, int partitionSize, int inodeCount) const {
+//inicia el superbloque
+SuperBlock FileSystemManager::createSuperBlock(int partitionStart, int, int inodeCount) const {
     SuperBlock superBlock;
 
     superBlock.s_filesystem_type = 2;
@@ -470,13 +496,13 @@ SuperBlock FileSystemManager::createSuperBlock(int partitionStart, int partition
 }
 
 
-//Limpia la particion antes del formato
+//limpia la particion antes del formato
 bool FileSystemManager::clearPartition(const string& path, int partitionStart, int partitionSize) const {
     return BinaryUtils::clearSpace(path, partitionStart, partitionSize);
 }
 
 
-//Inicia bitmap de inodos
+//inicia bitmap de inodos
 bool FileSystemManager::initializeInodeBitmap(const string& path, const SuperBlock& superBlock) const {
     fstream file(path, ios::in | ios::out | ios::binary);
 
@@ -509,7 +535,7 @@ bool FileSystemManager::initializeInodeBitmap(const string& path, const SuperBlo
 }
 
 
-//Inicia bitmap de bloques
+//inicia bitmap de bloques
 bool FileSystemManager::initializeBlockBitmap(const string& path, const SuperBlock& superBlock) const {
     fstream file(path, ios::in | ios::out | ios::binary);
 
@@ -542,7 +568,7 @@ bool FileSystemManager::initializeBlockBitmap(const string& path, const SuperBlo
 }
 
 
-//Inicia tabla de inodos
+//inicia tabla de inodos
 bool FileSystemManager::initializeInodes(const string& path, const SuperBlock& superBlock) const {
     fstream file(path, ios::in | ios::out | ios::binary);
 
@@ -575,7 +601,7 @@ bool FileSystemManager::initializeInodes(const string& path, const SuperBlock& s
 }
 
 
-//Inicia area de bloques
+//inicia area de bloques
 bool FileSystemManager::initializeBlocks(const string& path, const SuperBlock& superBlock) const {
     int blocksSize = superBlock.s_blocks_count * superBlock.s_block_s;
 
@@ -583,7 +609,7 @@ bool FileSystemManager::initializeBlocks(const string& path, const SuperBlock& s
 }
 
 
-//Crea raiz y users.txt
+//crea raiz y users.txt
 bool FileSystemManager::createRoot(const string& path, int partitionStart, SuperBlock& superBlock) const {
     if (superBlock.s_inodes_count < 2 || superBlock.s_blocks_count < 2){
         return false;
@@ -696,19 +722,13 @@ bool FileSystemManager::createRoot(const string& path, int partitionStart, Super
     superBlock.s_free_inodes_count -= 2;
     superBlock.s_free_blocks_count -= 2;
 
-    //guarda direccion fisica del siguiente inodo libre
-    superBlock.s_firts_ino =
-        superBlock.s_inode_start + 2 * superBlock.s_inode_s;
-
-    //guarda direccion fisica del siguiente bloque libre
-    superBlock.s_first_blo =
-        superBlock.s_block_start + 2 * superBlock.s_block_s;
+    updateFirstFree(path, superBlock);
 
     return writeSuperBlock(path, partitionStart, superBlock);
 }
 
 
-//Cambia valor del bitmap de inodos
+//cambia valor del bitmap de inodos
 bool FileSystemManager::writeInodeBitmap(const string& path, const SuperBlock& superBlock, int inodeIndex, char value) const {
     if (inodeIndex < 0 || inodeIndex >= superBlock.s_inodes_count){
         return false;
@@ -737,7 +757,7 @@ bool FileSystemManager::writeInodeBitmap(const string& path, const SuperBlock& s
 }
 
 
-//Cambia valor del bitmap de bloques
+//cambia valor del bitmap de bloques
 bool FileSystemManager::writeBlockBitmap(const string& path, const SuperBlock& superBlock, int blockIndex, char value) const {
     if (blockIndex < 0 || blockIndex >= superBlock.s_blocks_count){
         return false;
@@ -766,7 +786,7 @@ bool FileSystemManager::writeBlockBitmap(const string& path, const SuperBlock& s
 }
 
 
-//Actualiza direccion del primer inodo y bloque libre
+//actualiza direccion del primer inodo y bloque libre
 void FileSystemManager::updateFirstFree(const string& path, SuperBlock& superBlock) const {
     int freeInode = findFreeInode(path, superBlock);
     int freeBlock = findFreeBlock(path, superBlock);

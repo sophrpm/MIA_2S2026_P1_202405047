@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Crea las carpetas necesarias para una ruta
+//crea las carpetas necesarias para una ruta
 bool PathUtils::createDirectories(const string& path){
     string parentPath = getParentPath(path);
 
@@ -13,15 +13,17 @@ bool PathUtils::createDirectories(const string& path){
         return true;
     }
 
-    if (filesystem::exists(parentPath)){
+    error_code error;
+    if (filesystem::is_directory(parentPath, error)){
         return true;
     }
-
-    return filesystem::create_directories(parentPath);
+    error.clear();
+    bool created = filesystem::create_directories(parentPath, error);
+    return created && !error;
 }
 
 
-//Obtiene la carpeta padre de una ruta
+//obtiene la carpeta padre de una ruta
 string PathUtils::getParentPath(const string& path){
     filesystem::path filePath(path);
 
@@ -29,7 +31,7 @@ string PathUtils::getParentPath(const string& path){
 }
 
 
-//Obtiene el nombre del archivo
+//obtiene el nombre del archivo
 string PathUtils::getFileName(const string& path){
     filesystem::path filePath(path);
 
@@ -37,7 +39,7 @@ string PathUtils::getFileName(const string& path){
 }
 
 
-//Obtiene la extension del archivo
+//obtiene la extension del archivo
 string PathUtils::getExtension(const string& path){
     filesystem::path filePath(path);
     string extension = filePath.extension().string();
@@ -51,7 +53,7 @@ string PathUtils::getExtension(const string& path){
 }
 
 
-//Verifica si una ruta termina en una extension
+//verifica si una ruta termina en una extension
 bool PathUtils::hasExtension(const string& path, const string& extension){
     string pathExtension = getExtension(path);
 
@@ -80,9 +82,16 @@ bool PathUtils::hasExtension(const string& path, const string& extension){
 }
 
 
-//Verifica si la ruta es absoluta
+//verifica si la ruta es absoluta
 bool PathUtils::isAbsolute(const string& path){
     filesystem::path filePath(path);
 
     return filePath.is_absolute();
+}
+
+//unifica rutas relativas y enlaces del mismo disco
+string PathUtils::canonicalPath(const string& path){
+    error_code error;
+    filesystem::path resolved = filesystem::weakly_canonical(filesystem::absolute(path, error), error);
+    return error ? path : resolved.string();
 }

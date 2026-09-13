@@ -4,6 +4,12 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <fstream>
+#include <filesystem>
+#include "managers/FileManager.hpp"
+#include "utils/StringUtils.hpp"
+#include "utils/PathUtils.hpp"
 
 #include "analysis/CommandParser.hpp"
 #include "analysis/CommandToken.hpp"
@@ -33,11 +39,13 @@
 using namespace std;
 
 
-//Guarda montajes y sesion mientras corre el servidor
+//guarda montajes y sesion mientras corre el servidor
 AppState appState;
+mutex appMutex;
+vector<string> reportPaths;
 
 
-//Ejecuta el comando que corresponde
+//ejecuta el comando que corresponde
 ValidationResult executeCommand(const ParsedCommand& command){
 
     if (command.name == "mkdisk"){
@@ -47,7 +55,21 @@ ValidationResult executeCommand(const ParsedCommand& command){
 
     if (command.name == "rmdisk"){
         RmDiskCommand rmDiskCommand;
-        return rmDiskCommand.execute(command);
+        ValidationResult result = rmDiskCommand.execute(command);
+        if (result.success){
+            string path = PathUtils::canonicalPath(command.getParam("path"));
+            for (size_t i = 0; i < appState.mountedPartitions.size();){
+                if (appState.mountedPartitions[i].path == path){
+                    if (appState.session.partitionId == appState.mountedPartitions[i].id){
+                        appState.session = Session();
+                    }
+                    appState.mountedPartitions.erase(appState.mountedPartitions.begin() + i);
+                } else {
+                    i++;
+                }
+            }
+        }
+        return result;
     }
 
     if (command.name == "fdisk"){
@@ -129,121 +151,184 @@ ValidationResult executeCommand(const ParsedCommand& command){
 }
 
 
-//Inicia el servidor
-int main(){
+//procesa lineas en orden y conserva una continuacion si hay una pregunta
+crow::json::wvalue processInput(string inputText){
+    vector<string> messages;
+    vector<crow::json::wvalue> reports;
+    int successfulCommands = 0;
+    int lexicalErrors = 0;
+    int syntaxErrors = 0;
+    bool allSuccess = true;
 
-    crow::App<crow::CORSHandler> app;
-
-    //configura cors
-    auto& cors = app.get_middleware<crow::CORSHandler>();
-
-    cors.global().headers("Content-Type").methods("GET"_method, "POST"_method, "OPTIONS"_method).origin("*");
-
-
-    //verifica que el servidor este activo
-    CROW_ROUTE(app, "/api/health")
-    ([](){
-
-        crow::json::wvalue response;
-
-        response["success"] = true;
-        response["message"] = "Servidor MIA activo.";
-
-        return crow::response(200, response);
-    });
-
-
-    //analiza y ejecuta comandos
-    CROW_ROUTE(app, "/api/analyze").methods(crow::HTTPMethod::POST)
-    ([](const crow::request& request){
-
-        crow::json::wvalue response;
-        vector<string> messages;
-
-        //lee json recibido
-        crow::json::rvalue body = crow::json::load(request.body);
-
-        if (!body){
-            response["success"] = false;
-            response["messages"] = vector<string>{"Error: cuerpo JSON no valido."};
-
-            return crow::response(400, response);
+    if (appState.pendingConfirmation.active){
+        string answer = StringUtils::toLower(StringUtils::trim(inputText));
+        PendingConfirmation pending = appState.pendingConfirmation;
+        successfulCommands = pending.successfulCommands;
+        lexicalErrors = pending.lexicalErrors;
+        syntaxErrors = pending.syntaxErrors;
+        allSuccess = pending.allSuccess;
+        if (answer != "y" && answer != "yes" && answer != "n" && answer != "no"){
+            inputText = "";
+            messages.push_back("Responda y/yes o n/no. ¿Desea sobrescribirlo? [y/n]:");
+        } else {
+            appState.pendingConfirmation = PendingConfirmation();
+            if (answer == "y" || answer == "yes"){
+                FileManager fileManager;
+                string message;
+                bool success = fileManager.createFile(pending.path, pending.content, pending.recursive, true, appState, message);
+                messages.push_back(message);
+                if (success){
+                    successfulCommands++;
+                } else {
+                    allSuccess = false;
+                }
+            } else {
+                messages.push_back("Sobrescritura cancelada.");
+            }
+            inputText = pending.remainingInput;
         }
+    }
 
-        //verifica campo input
-        if (!body.has("input")){
-            response["success"] = false;
-            response["messages"] = vector<string>{"Error: falta el campo input."};
-
-            return crow::response(400, response);
+    size_t position = 0;
+    while (position < inputText.size()){
+        size_t end = inputText.find('\n', position);
+        size_t next = end == string::npos ? inputText.size() : end + 1;
+        string line = inputText.substr(position, (end == string::npos ? inputText.size() : end) - position);
+        if (!line.empty() && line.back() == '\r'){
+            line.pop_back();
         }
-
-        string inputText = body["input"].s();
-
-        if (inputText.empty()){
-            response["success"] = false;
-            response["messages"] = vector<string>{"Error: no se ingresaron comandos."};
-
-            return crow::response(400, response);
+        position = next;
+        string trimmed = StringUtils::trim(line);
+        if (trimmed.empty() || trimmed[0] == '#'){
+            messages.push_back(line);
+            continue;
         }
-
         CommandToken tokenizer;
-
-        //tokeniza todo el texto
-        TokenizeResult tokenResult = tokenizer.tokenize(inputText);
-
-        bool allSuccess = true;
-
-        //guarda errores lexicos
-        for (const string& error : tokenResult.errors){
-            messages.push_back(error);
+        TokenizeResult tokens = tokenizer.tokenize(line);
+        if (!tokens.errors.empty()){
+            lexicalErrors += static_cast<int>(tokens.errors.size());
+            messages.insert(messages.end(), tokens.errors.begin(), tokens.errors.end());
             allSuccess = false;
+            continue;
         }
-
         CommandParser parser;
-
-        //convierte tokens en comandos
-        ParseResult parseResult = parser.parse(tokenResult.tokens);
-
-        //guarda errores del parser
-        for (const string& error : parseResult.errors){
-            messages.push_back(error);
+        ParseResult parsed = parser.parse(tokens.tokens);
+        if (!parsed.errors.empty()){
+            syntaxErrors += static_cast<int>(parsed.errors.size());
+            messages.insert(messages.end(), parsed.errors.begin(), parsed.errors.end());
             allSuccess = false;
+            continue;
         }
-
-        //ejecuta comandos obtenidos
-        for (const ParsedCommand& command : parseResult.commands){
-
-            //muestra comentarios
+        for (const ParsedCommand& command : parsed.commands){
             if (command.isComment){
                 messages.push_back(command.commentText);
                 continue;
             }
-
-            //ignora comando vacio
-            if (command.name.empty()){
-                continue;
-            }
-
             ValidationResult result = executeCommand(command);
-
             messages.push_back(result.message);
-
-            if (!result.success){
+            if (appState.pendingConfirmation.active){
+                appState.pendingConfirmation.remainingInput = inputText.substr(position);
+                for (const ParsedCommand& remaining : parsed.commands){
+                    if (remaining.isComment){
+                        appState.pendingConfirmation.remainingInput = remaining.commentText + "\n" + appState.pendingConfirmation.remainingInput;
+                    }
+                }
+                appState.pendingConfirmation.successfulCommands = successfulCommands;
+                appState.pendingConfirmation.lexicalErrors = lexicalErrors;
+                appState.pendingConfirmation.syntaxErrors = syntaxErrors;
+                appState.pendingConfirmation.allSuccess = allSuccess;
+                break;
+            }
+            if (result.success){
+                successfulCommands++;
+                if (command.name == "rep"){
+                    string path = command.getParam("path");
+                    reportPaths.push_back(path);
+                    crow::json::wvalue report;
+                    report["name"] = PathUtils::getFileName(path);
+                    report["url"] = "/api/reports/" + to_string(reportPaths.size() - 1);
+                    reports.push_back(move(report));
+                }
+            } else {
                 allSuccess = false;
             }
         }
+        if (appState.pendingConfirmation.active){
+            break;
+        }
+    }
 
-        response["success"] = allSuccess;
-        response["messages"] = messages;
+    crow::json::wvalue response;
+    response["success"] = allSuccess;
+    response["messages"] = messages;
+    response["stats"]["successfulCommands"] = successfulCommands;
+    response["stats"]["lexicalErrors"] = lexicalErrors;
+    response["stats"]["syntaxErrors"] = syntaxErrors;
+    response["pendingConfirmation"] = appState.pendingConfirmation.active;
+    response["reports"] = move(reports);
+    return response;
+}
 
+
+//inicia el servidor
+int main(){
+    crow::App<crow::CORSHandler> app;
+    auto& cors = app.get_middleware<crow::CORSHandler>();
+    cors.global().headers("Content-Type").methods("GET"_method, "POST"_method, "OPTIONS"_method).origin("*");
+
+    CROW_ROUTE(app, "/api/health")([](){
+        crow::json::wvalue response;
+        response["success"] = true;
+        response["message"] = "Servidor MIA activo.";
         return crow::response(200, response);
     });
 
+    CROW_ROUTE(app, "/api/analyze").methods(crow::HTTPMethod::POST)([](const crow::request& request){
+        lock_guard<mutex> lock(appMutex);
+        crow::json::rvalue body = crow::json::load(request.body);
+        if (!body || !body.has("input") || body["input"].t() != crow::json::type::String){
+            crow::json::wvalue response;
+            response["success"] = false;
+            response["messages"] = vector<string>{"Error: se necesita un JSON con input de tipo texto."};
+            response["stats"]["successfulCommands"] = 0;
+            response["stats"]["lexicalErrors"] = 0;
+            response["stats"]["syntaxErrors"] = 0;
+            return crow::response(400, response);
+        }
+        return crow::response(200, processInput(body["input"].s()));
+    });
 
-    cout << "Servidor MIA ejecutandose en http://localhost:2611" << endl;
+    //solo permite consultar reportes generados en esta ejecucion
+    CROW_ROUTE(app, "/api/reports/<uint>")([](unsigned int index){
+        lock_guard<mutex> lock(appMutex);
+        if (index >= reportPaths.size()){
+            return crow::response(404);
+        }
+        ifstream file(reportPaths[index], ios::binary);
+        if (!file){
+            return crow::response(404);
+        }
+        string content((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+        string extension = StringUtils::toLower(PathUtils::getExtension(reportPaths[index]));
+        string type = "text/plain; charset=utf-8";
+        if (extension == "svg") type = "image/svg+xml";
+        if (extension == "png") type = "image/png";
+        if (extension == "jpg" || extension == "jpeg") type = "image/jpeg";
+        if (extension == "pdf") type = "application/pdf";
+        crow::response response(200, content);
+        response.set_header("Content-Type", type);
+        response.set_header("X-Content-Type-Options", "nosniff");
+        response.set_header("Content-Security-Policy", "sandbox");
+        return response;
+    });
 
-    app.port(2611).multithreaded().run();
-
+    const char* portText = getenv("MIA_PORT");
+    int port = portText ? StringUtils::toPositiveInt(portText) : 2611;
+    if (port < 1 || port > 65535){
+        cerr << "MIA_PORT debe estar entre 1 y 65535." << endl;
+        return 1;
+    }
+    cout << "Servidor MIA ejecutandose en http://localhost:" << port << endl;
+    app.bindaddr("127.0.0.1").port(port).multithreaded().run();
     return 0;
 }

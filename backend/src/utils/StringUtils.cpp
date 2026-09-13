@@ -5,7 +5,7 @@
 using namespace std;
 
 
-//Convierte texto a minuscula
+//convierte texto a minuscula
 string StringUtils::toLower(const string& text){
     string lowerText = text;
 
@@ -17,7 +17,7 @@ string StringUtils::toLower(const string& text){
 }
 
 
-//Convierte texto a mayuscula
+//convierte texto a mayuscula
 string StringUtils::toUpper(const string& text){
     string upperText = text;
 
@@ -29,13 +29,13 @@ string StringUtils::toUpper(const string& text){
 }
 
 
-//Compara dos textos ignorando mayusculas
+//compara dos textos ignorando mayusculas
 bool StringUtils::equalsIgnoreCase(const string& firstText, const string& secondText){
     return toLower(firstText) == toLower(secondText);
 }
 
 
-//Quita espacios al inicio y final
+//quita espacios al inicio y final
 string StringUtils::trim(const string& text){
     size_t start = 0;
     size_t end = text.size();
@@ -54,7 +54,7 @@ string StringUtils::trim(const string& text){
 }
 
 
-//Separa texto usando un delimitador
+//separa texto usando un delimitador
 vector<string> StringUtils::split(const string& text, char delimiter){
     vector<string> parts;
     string currentPart;
@@ -77,7 +77,22 @@ vector<string> StringUtils::split(const string& text, char delimiter){
 }
 
 
-//Verifica si el texto esta vacio
+//verifica si el texto esta vacio
 bool StringUtils::isEmpty(const string& text){
     return trim(text).empty();
+}
+
+//convierte ids sin excepciones
+int StringUtils::toPositiveInt(const string& text){
+    if (text.empty()){
+        return -1;
+    }
+    int value = 0;
+    for (char character : text){
+        if (character < '0' || character > '9' || value > (2147483647 - (character - '0')) / 10){
+            return -1;
+        }
+        value = value * 10 + character - '0';
+    }
+    return value;
 }

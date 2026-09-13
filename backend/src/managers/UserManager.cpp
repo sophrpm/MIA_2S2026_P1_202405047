@@ -9,7 +9,7 @@
 using namespace std;
 
 
-//Inicia sesion con un usuario
+//inicia sesion con un usuario
 bool UserManager::login(const string& user, const string& password, const string& id, AppState& appState, string& message) const {
     if (hasActiveSession(appState)){
         message = "Error: ya existe una sesion activa.";
@@ -45,6 +45,11 @@ bool UserManager::login(const string& user, const string& password, const string
     int uid = -1;
     int gid = -1;
 
+    if (!userExists(content, user)){
+        message = "Error: el usuario no existe.";
+        return false;
+    }
+
     //verifica usuario y contraseña
     if (!validLogin(content, user, password, uid, gid)){
         message = "Error: usuario o contraseña incorrectos.";
@@ -63,7 +68,7 @@ bool UserManager::login(const string& user, const string& password, const string
 }
 
 
-//Cierra la sesion actual
+//cierra la sesion actual
 bool UserManager::logout(AppState& appState, string& message) const {
     if (!hasActiveSession(appState)){
         message = "Error: no hay una sesion activa.";
@@ -77,7 +82,7 @@ bool UserManager::logout(AppState& appState, string& message) const {
 }
 
 
-//Crea un grupo nuevo
+//crea un grupo nuevo
 bool UserManager::createGroup(const string& name, AppState& appState, string& message) const {
     if (!hasActiveSession(appState)){
         message = "Error: debe iniciar sesion para crear un grupo.";
@@ -91,6 +96,11 @@ bool UserManager::createGroup(const string& name, AppState& appState, string& me
 
     if (name.empty()){
         message = "Error: el nombre del grupo no puede estar vacio.";
+        return false;
+    }
+
+    if (name.find_first_of(",\r\n") != string::npos){
+        message = "Error: el grupo no puede contener separadores de users.txt.";
         return false;
     }
 
@@ -123,7 +133,7 @@ bool UserManager::createGroup(const string& name, AppState& appState, string& me
 }
 
 
-//Elimina un grupo
+//elimina un grupo
 bool UserManager::removeGroup(const string& name, AppState& appState, string& message) const {
     if (!hasActiveSession(appState)){
         message = "Error: debe iniciar sesion para eliminar un grupo.";
@@ -165,7 +175,7 @@ bool UserManager::removeGroup(const string& name, AppState& appState, string& me
 }
 
 
-//Crea un usuario nuevo
+//crea un usuario nuevo
 bool UserManager::createUser(const string& user, const string& password, const string& group, AppState& appState, string& message) const {
     if (!hasActiveSession(appState)){
         message = "Error: debe iniciar sesion para crear un usuario.";
@@ -179,6 +189,11 @@ bool UserManager::createUser(const string& user, const string& password, const s
 
     if (user.empty() || password.empty() || group.empty()){
         message = "Error: usuario, contraseña y grupo son obligatorios.";
+        return false;
+    }
+
+    if (user.find_first_of(",\r\n") != string::npos || password.find_first_of(",\r\n") != string::npos || group.find_first_of(",\r\n") != string::npos){
+        message = "Error: usuario, contraseña y grupo no pueden contener separadores de users.txt.";
         return false;
     }
 
@@ -216,7 +231,7 @@ bool UserManager::createUser(const string& user, const string& password, const s
 }
 
 
-//Elimina un usuario
+//elimina un usuario
 bool UserManager::removeUser(const string& user, AppState& appState, string& message) const {
     if (!hasActiveSession(appState)){
         message = "Error: debe iniciar sesion para eliminar un usuario.";
@@ -258,7 +273,7 @@ bool UserManager::removeUser(const string& user, AppState& appState, string& mes
 }
 
 
-//Cambia el grupo de un usuario
+//cambia el grupo de un usuario
 bool UserManager::changeUserGroup(const string& user, const string& group, AppState& appState, string& message) const {
     if (!hasActiveSession(appState)){
         message = "Error: debe iniciar sesion para cambiar el grupo de un usuario.";
@@ -300,7 +315,7 @@ bool UserManager::changeUserGroup(const string& user, const string& group, AppSt
 }
 
 
-//Lee todo el contenido de users.txt
+//lee todo el contenido de users.txt
 bool UserManager::readUsersFile(const AppState& appState, string& content, string& message) const {
     FileManager fileManager;
 
@@ -308,7 +323,7 @@ bool UserManager::readUsersFile(const AppState& appState, string& content, strin
 }
 
 
-//Escribe el nuevo contenido de users.txt
+//escribe el nuevo contenido de users.txt
 bool UserManager::writeUsersFile(AppState& appState, const string& content, string& message) const {
     FileManager fileManager;
 
@@ -316,19 +331,19 @@ bool UserManager::writeUsersFile(AppState& appState, const string& content, stri
 }
 
 
-//Verifica si hay una sesion activa
+//verifica si hay una sesion activa
 bool UserManager::hasActiveSession(const AppState& appState) const {
     return appState.session.active;
 }
 
 
-//Verifica si el usuario actual es root
+//verifica si el usuario actual es root
 bool UserManager::isRoot(const AppState& appState) const {
     return appState.session.active && appState.session.user == "root" && appState.session.uid == 1;
 }
 
 
-//Busca un grupo activo
+//busca un grupo activo
 bool UserManager::groupExists(const string& content, const string& group) const {
     vector<string> lines = StringUtils::split(content, '\n');
 
@@ -352,7 +367,7 @@ bool UserManager::groupExists(const string& content, const string& group) const 
 }
 
 
-//Busca un usuario activo
+//busca un usuario activo
 bool UserManager::userExists(const string& content, const string& user) const {
     vector<string> lines = StringUtils::split(content, '\n');
 
@@ -376,7 +391,7 @@ bool UserManager::userExists(const string& content, const string& user) const {
 }
 
 
-//Busca las credenciales de un usuario
+//busca las credenciales de un usuario
 bool UserManager::validLogin(const string& content, const string& user, const string& password, int& uid, int& gid) const {
     vector<string> lines = StringUtils::split(content, '\n');
 
@@ -397,10 +412,10 @@ bool UserManager::validLogin(const string& content, const string& user, const st
 
         //usuario y contraseña respetan mayusculas
         if (fields[3] == user && fields[4] == password){
-            uid = stoi(fields[0]);
+            uid = StringUtils::toPositiveInt(fields[0]);
             gid = getGroupId(content, fields[2]);
 
-            if (gid == -1){
+            if (uid <= 0 || gid <= 0){
                 return false;
             }
 
@@ -412,7 +427,7 @@ bool UserManager::validLogin(const string& content, const string& user, const st
 }
 
 
-//Obtiene el id de un grupo
+//obtiene el id de un grupo
 int UserManager::getGroupId(const string& content, const string& group) const {
     vector<string> lines = StringUtils::split(content, '\n');
 
@@ -428,7 +443,7 @@ int UserManager::getGroupId(const string& content, const string& group) const {
         }
 
         if (fields[0] != "0" && fields[1] == "G" && fields[2] == group){
-            return stoi(fields[0]);
+            return StringUtils::toPositiveInt(fields[0]);
         }
     }
 
@@ -436,10 +451,11 @@ int UserManager::getGroupId(const string& content, const string& group) const {
 }
 
 
-//Obtiene el siguiente id para grupo
+//obtiene el siguiente id para grupo
 int UserManager::getNextGroupId(const string& content) const {
     vector<string> lines = StringUtils::split(content, '\n');
     int greaterId = 0;
+    int recordCount = 0;
 
     //busca id mayor de grupos activos
     for (const string& line : lines){
@@ -453,21 +469,23 @@ int UserManager::getNextGroupId(const string& content) const {
             continue;
         }
 
-        int currentId = stoi(fields[0]);
+        recordCount++;
+        int currentId = StringUtils::toPositiveInt(fields[0]);
 
         if (currentId > greaterId){
             greaterId = currentId;
         }
     }
 
-    return greaterId + 1;
+    return max(greaterId, recordCount) + 1;
 }
 
 
-//Obtiene el siguiente id para usuario
+//obtiene el siguiente id para usuario
 int UserManager::getNextUserId(const string& content) const {
     vector<string> lines = StringUtils::split(content, '\n');
     int greaterId = 0;
+    int recordCount = 0;
 
     //busca id mayor de usuarios activos
     for (const string& line : lines){
@@ -481,18 +499,19 @@ int UserManager::getNextUserId(const string& content) const {
             continue;
         }
 
-        int currentId = stoi(fields[0]);
+        recordCount++;
+        int currentId = StringUtils::toPositiveInt(fields[0]);
 
         if (currentId > greaterId){
             greaterId = currentId;
         }
     }
 
-    return greaterId + 1;
+    return max(greaterId, recordCount) + 1;
 }
 
 
-//Marca un grupo como eliminado
+//marca un grupo como eliminado
 bool UserManager::markGroupDeleted(string& content, const string& group) const {
     vector<string> lines = StringUtils::split(content, '\n');
     bool found = false;
@@ -523,7 +542,7 @@ bool UserManager::markGroupDeleted(string& content, const string& group) const {
 }
 
 
-//Marca un usuario como eliminado
+//marca un usuario como eliminado
 bool UserManager::markUserDeleted(string& content, const string& user) const {
     vector<string> lines = StringUtils::split(content, '\n');
     bool found = false;
@@ -554,7 +573,7 @@ bool UserManager::markUserDeleted(string& content, const string& user) const {
 }
 
 
-//Cambia el grupo dentro del registro del usuario
+//cambia el grupo dentro del registro del usuario
 bool UserManager::updateUserGroup(string& content, const string& user, const string& group) const {
     vector<string> lines = StringUtils::split(content, '\n');
     bool found = false;

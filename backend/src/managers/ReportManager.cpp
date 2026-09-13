@@ -11,6 +11,8 @@
 #include <set>
 #include <sstream>
 #include <vector>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "managers/DiskManager.hpp"
 #include "managers/FileManager.hpp"
@@ -24,7 +26,7 @@
 using namespace std;
 
 
-//Escapa caracteres que pueden romper una tabla HTML de Graphviz
+//escapa caracteres que pueden romper una tabla html de graphviz
 static string escapeGraphvizText(const string& text){
     string result;
 
@@ -50,7 +52,7 @@ static string escapeGraphvizText(const string& text){
 }
 
 
-//Convierte porcentaje a texto con dos decimales
+//convierte porcentaje a texto con dos decimales
 static string percentageText(double value){
     stringstream stream;
 
@@ -60,7 +62,7 @@ static string percentageText(double value){
 }
 
 
-//Obtiene solamente la fecha
+//obtiene solamente la fecha
 static string dateOnly(time_t value){
     if (value == 0){
         return "-";
@@ -83,7 +85,7 @@ static string dateOnly(time_t value){
 }
 
 
-//Obtiene solamente la hora
+//obtiene solamente la hora
 static string timeOnly(time_t value){
     if (value == 0){
         return "-";
@@ -106,9 +108,21 @@ static string timeOnly(time_t value){
 }
 
 
-//Genera el reporte solicitado
+//genera el reporte solicitado
 bool ReportManager::generateReport(const string& name, const string& path, const string& id, const string& pathFileLs, const AppState& appState, string& message) const {
     string reportName = StringUtils::toLower(name);
+    string extension = getExtension(path);
+    bool textReport = reportName == "file" || reportName == "bm_inode" || reportName == "bm_block";
+    if ((textReport && extension != "txt") || (!textReport && extension != "dot" && extension != "svg" && extension != "png" && extension != "jpg" && extension != "jpeg" && extension != "pdf")){
+        message = "Error: use .txt para file/bitmaps o .dot, .svg, .png, .jpg, .jpeg, .pdf para reportes graficos.";
+        return false;
+    }
+    for (const MountedPartition& mounted : appState.mountedPartitions){
+        if (PathUtils::canonicalPath(path) == mounted.path || PathUtils::canonicalPath(path + ".dot") == mounted.path){
+            message = "Error: la salida del reporte no puede reemplazar un disco.";
+            return false;
+        }
+    }
 
     if (reportName == "mbr"){
         return reportMBR(path, id, appState, message);
@@ -165,7 +179,7 @@ bool ReportManager::generateReport(const string& name, const string& path, const
 }
 
 
-//Genera reporte del MBR y EBR
+//genera reporte del mbr y ebr
 bool ReportManager::reportMBR(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -189,7 +203,7 @@ bool ReportManager::reportMBR(const string& outputPath, const string& id, const 
     dotContent += "rankdir=LR;\n";
     dotContent += "node [shape=plaintext];\n";
 
-    //tabla principal del MBR
+    //tabla principal del mbr
     dotContent += "mbr [label=<\n";
     dotContent += "<table border='1' cellborder='1' cellspacing='0'>\n";
     dotContent += "<tr><td colspan='2'><b>MBR</b></td></tr>\n";
@@ -203,10 +217,6 @@ bool ReportManager::reportMBR(const string& outputPath, const string& id, const 
     //crea tabla para cada particion
     for (int partitionPos = 0; partitionPos < 4; partitionPos++){
         const Partition& partition = mbr.mbr_partitions[partitionPos];
-
-        if (partition.part_s <= 0){
-            continue;
-        }
 
         string nodeName = "partition" + to_string(partitionPos);
         string partitionName = escapeGraphvizText(charArrayToString(partition.part_name, 16));
@@ -228,7 +238,7 @@ bool ReportManager::reportMBR(const string& outputPath, const string& id, const 
 
         dotContent += "mbr -> " + nodeName + ";\n";
 
-        //si es extendida agrega los EBR
+        //si es extendida agrega los ebr
         if (partition.part_type == 'E'){
             if (!addLogicalPartitionsMBR(mountedPartition.path, partition, dotContent)){
                 message = "Error: no se pudieron leer los EBR.";
@@ -248,7 +258,7 @@ bool ReportManager::reportMBR(const string& outputPath, const string& id, const 
 }
 
 
-//Genera reporte grafico del espacio del disco
+//genera reporte grafico del espacio del disco
 bool ReportManager::reportDisk(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -295,7 +305,7 @@ bool ReportManager::reportDisk(const string& outputPath, const string& id, const
 
     vector<DiskSegment> segments;
 
-    //MBR siempre esta al inicio
+    //mbr siempre esta al inicio
     segments.push_back({"MBR", "MBR", 0, static_cast<int>(sizeof(MBR)), nullptr});
 
     int currentPosition = static_cast<int>(sizeof(MBR));
@@ -401,7 +411,7 @@ bool ReportManager::reportDisk(const string& outputPath, const string& id, const
             int ebrPosition = extendedStart;
             int innerPosition = extendedStart;
 
-            //recorre los EBR dentro de la extendida
+            //recorre los ebr dentro de la extendida
             while (ebrPosition >= extendedStart && ebrPosition + static_cast<int>(sizeof(EBR)) <= extendedEnd){
                 EBR ebr;
 
@@ -410,7 +420,7 @@ bool ReportManager::reportDisk(const string& outputPath, const string& id, const
                     return false;
                 }
 
-                //espacio libre antes del EBR si existe
+                //espacio libre antes del ebr si existe
                 if (ebrPosition > innerPosition){
                     int freeSize = ebrPosition - innerPosition;
                     double innerPercent = (static_cast<double>(freeSize) * 100.0) / extended.part_s;
@@ -426,7 +436,7 @@ bool ReportManager::reportDisk(const string& outputPath, const string& id, const
 
                 innerPosition = ebrPosition + static_cast<int>(sizeof(EBR));
 
-                //si el EBR representa una logica
+                //si el ebr representa una logica
                 if (ebr.part_s > 0){
                     if (ebr.part_start > innerPosition){
                         int freeSize = ebr.part_start - innerPosition;
@@ -454,7 +464,7 @@ bool ReportManager::reportDisk(const string& outputPath, const string& id, const
                     break;
                 }
 
-                //el espacio antes del siguiente EBR es libre
+                //el espacio antes del siguiente ebr es libre
                 if (ebr.part_next > innerPosition){
                     int freeSize = ebr.part_next - innerPosition;
                     double innerPercent = (static_cast<double>(freeSize) * 100.0) / extended.part_s;
@@ -510,7 +520,7 @@ bool ReportManager::reportDisk(const string& outputPath, const string& id, const
 }
 
 
-//Genera reporte de inodos utilizados
+//genera reporte de inodos utilizados
 bool ReportManager::reportInode(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -600,7 +610,7 @@ bool ReportManager::reportInode(const string& outputPath, const string& id, cons
 }
 
 
-//Genera reporte de todos los bloques utilizados
+//genera reporte de todos los bloques utilizados
 bool ReportManager::reportBlock(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -803,7 +813,7 @@ bool ReportManager::reportBlock(const string& outputPath, const string& id, cons
 }
 
 
-//Genera bitmap de inodos
+//genera bitmap de inodos
 bool ReportManager::reportBitmapInode(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -818,6 +828,11 @@ bool ReportManager::reportBitmapInode(const string& outputPath, const string& id
 
     if (!fileSystemManager.readSuperBlock(mountedPartition.path, mountedPartition.start, superBlock)){
         message = "Error: no se pudo leer el superbloque.";
+        return false;
+    }
+
+    if (superBlock.s_magic != 0xEF53){
+        message = "Error: la particion no contiene EXT2.";
         return false;
     }
 
@@ -854,7 +869,7 @@ bool ReportManager::reportBitmapInode(const string& outputPath, const string& id
 }
 
 
-//Genera bitmap de bloques
+//genera bitmap de bloques
 bool ReportManager::reportBitmapBlock(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -869,6 +884,11 @@ bool ReportManager::reportBitmapBlock(const string& outputPath, const string& id
 
     if (!fileSystemManager.readSuperBlock(mountedPartition.path, mountedPartition.start, superBlock)){
         message = "Error: no se pudo leer el superbloque.";
+        return false;
+    }
+
+    if (superBlock.s_magic != 0xEF53){
+        message = "Error: la particion no contiene EXT2.";
         return false;
     }
 
@@ -905,7 +925,7 @@ bool ReportManager::reportBitmapBlock(const string& outputPath, const string& id
 }
 
 
-//Genera arbol completo EXT2
+//genera arbol completo ext2
 bool ReportManager::reportTree(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -1001,7 +1021,7 @@ bool ReportManager::reportTree(const string& outputPath, const string& id, const
                     continue;
                 }
 
-                dotContent += "block" + to_string(blockIndex) + " -> inode" + to_string(childInode) + " [label=\"" + escapeGraphvizText(entryName) + "\"];\n";
+                dotContent += "block" + to_string(blockIndex) + " -> inode" + to_string(childInode) + " [label=<" + escapeGraphvizText(entryName) + ">];\n";
 
                 if (!addInode(childInode)){
                     return false;
@@ -1086,6 +1106,9 @@ bool ReportManager::reportTree(const string& outputPath, const string& id, const
         dotContent += "<tr><td>i_uid</td><td>" + to_string(inode.i_uid) + "</td></tr>\n";
         dotContent += "<tr><td>i_gid</td><td>" + to_string(inode.i_gid) + "</td></tr>\n";
         dotContent += "<tr><td>i_s</td><td>" + to_string(inode.i_s) + "</td></tr>\n";
+        dotContent += "<tr><td>i_atime</td><td>" + formatDate(inode.i_atime) + "</td></tr>\n";
+        dotContent += "<tr><td>i_ctime</td><td>" + formatDate(inode.i_ctime) + "</td></tr>\n";
+        dotContent += "<tr><td>i_mtime</td><td>" + formatDate(inode.i_mtime) + "</td></tr>\n";
         dotContent += "<tr><td>i_type</td><td>" + string(1, inode.i_type) + "</td></tr>\n";
         dotContent += "<tr><td>i_perm</td><td>" + charArrayToString(inode.i_perm, 3) + "</td></tr>\n";
 
@@ -1158,7 +1181,7 @@ bool ReportManager::reportTree(const string& outputPath, const string& id, const
 }
 
 
-//Genera reporte del superbloque
+//genera reporte del superbloque
 bool ReportManager::reportSuperBlock(const string& outputPath, const string& id, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -1222,7 +1245,7 @@ bool ReportManager::reportSuperBlock(const string& outputPath, const string& id,
 }
 
 
-//Genera reporte del contenido de un archivo
+//genera reporte del contenido de un archivo
 bool ReportManager::reportFile(const string& outputPath, const string& id, const string& internalPath, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -1272,7 +1295,7 @@ bool ReportManager::reportFile(const string& outputPath, const string& id, const
 }
 
 
-//Genera reporte ls
+//genera reporte ls
 bool ReportManager::reportLs(const string& outputPath, const string& id, const string& internalPath, const AppState& appState, string& message) const {
     MountManager mountManager;
     MountedPartition mountedPartition;
@@ -1452,7 +1475,7 @@ bool ReportManager::reportLs(const string& outputPath, const string& id, const s
 }
 
 
-//Ejecuta Graphviz para crear imagen
+//ejecuta graphviz para crear imagen
 bool ReportManager::generateGraphviz(const string& dotContent, const string& outputPath, string& message) const {
     if (!createOutputDirectories(outputPath)){
         message = "Error: no se pudieron crear las carpetas del reporte.";
@@ -1483,8 +1506,14 @@ bool ReportManager::generateGraphviz(const string& dotContent, const string& out
     dotFile << dotContent;
     dotFile.close();
 
-    string command = "dot -T" + extension + " \"" + dotPath + "\" -o \"" + outputPath + "\"";
-    int result = system(command.c_str());
+    string format = "-T" + extension;
+    pid_t child = fork();
+    if (child == 0){
+        execlp("dot", "dot", format.c_str(), dotPath.c_str(), "-o", outputPath.c_str(), static_cast<char*>(nullptr));
+        _exit(127);
+    }
+    int status = 0;
+    int result = child < 0 || waitpid(child, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0;
 
     remove(dotPath.c_str());
 
@@ -1497,7 +1526,7 @@ bool ReportManager::generateGraphviz(const string& dotContent, const string& out
 }
 
 
-//Genera archivo de texto
+//genera archivo de texto
 bool ReportManager::generateTextFile(const string& content, const string& outputPath, string& message) const {
     if (!createOutputDirectories(outputPath)){
         message = "Error: no se pudieron crear las carpetas del reporte.";
@@ -1518,19 +1547,19 @@ bool ReportManager::generateTextFile(const string& content, const string& output
 }
 
 
-//Obtiene extension del archivo
+//obtiene extension del archivo
 string ReportManager::getExtension(const string& path) const {
     return StringUtils::toLower(PathUtils::getExtension(path));
 }
 
 
-//Crea carpetas necesarias para el reporte
+//crea carpetas necesarias para el reporte
 bool ReportManager::createOutputDirectories(const string& path) const {
     return PathUtils::createDirectories(path);
 }
 
 
-//Convierte fecha y hora a texto
+//convierte fecha y hora a texto
 string ReportManager::formatDate(time_t date) const {
     if (date == 0){
         return "-";
@@ -1556,13 +1585,13 @@ string ReportManager::formatDate(time_t date) const {
 }
 
 
-//Convierte char fijo a string
+//convierte char fijo a string
 string ReportManager::charArrayToString(const char* text, int size) const {
     return BinaryUtils::fixedCharToString(text, size);
 }
 
 
-//Agrega EBR al reporte MBR
+//agrega ebr al reporte mbr
 bool ReportManager::addLogicalPartitionsMBR(const string& diskPath, const Partition& extendedPartition, string& dotContent) const {
     int currentPosition = extendedPartition.part_start;
     int extendedEnd = extendedPartition.part_start + extendedPartition.part_s;
@@ -1608,7 +1637,7 @@ bool ReportManager::addLogicalPartitionsMBR(const string& diskPath, const Partit
 }
 
 
-//Agrega logicas a una tabla de disk
+//agrega logicas a una tabla de disk
 bool ReportManager::addLogicalPartitionsDisk(const string& diskPath, const Partition& extendedPartition, string& dotContent) const {
     int currentPosition = extendedPartition.part_start;
     int extendedEnd = extendedPartition.part_start + extendedPartition.part_s;
@@ -1646,7 +1675,7 @@ bool ReportManager::addLogicalPartitionsDisk(const string& diskPath, const Parti
 }
 
 
-//Agrega inodo al arbol
+//agrega inodo al arbol
 bool ReportManager::addInodeTree(const string& diskPath, const SuperBlock& superBlock, int inodeIndex, string& dotContent) const {
     FileSystemManager fileSystemManager;
     Inode inode;
@@ -1670,7 +1699,7 @@ bool ReportManager::addInodeTree(const string& diskPath, const SuperBlock& super
 }
 
 
-//Agrega bloque carpeta al arbol
+//agrega bloque carpeta al arbol
 bool ReportManager::addFolderBlockTree(const string& diskPath, const SuperBlock& superBlock, int blockIndex, string& dotContent) const {
     FileSystemManager fileSystemManager;
     FolderBlock folderBlock;
@@ -1696,7 +1725,7 @@ bool ReportManager::addFolderBlockTree(const string& diskPath, const SuperBlock&
 }
 
 
-//Agrega bloque archivo al arbol
+//agrega bloque archivo al arbol
 bool ReportManager::addFileBlockTree(const string& diskPath, const SuperBlock& superBlock, int blockIndex, string& dotContent) const {
     FileSystemManager fileSystemManager;
     FileBlock fileBlock;
@@ -1718,7 +1747,7 @@ bool ReportManager::addFileBlockTree(const string& diskPath, const SuperBlock& s
 }
 
 
-//Agrega bloque de apuntadores al arbol
+//agrega bloque de apuntadores al arbol
 bool ReportManager::addPointerBlockTree(const string& diskPath, const SuperBlock& superBlock, int blockIndex, int level, string& dotContent) const {
     FileSystemManager fileSystemManager;
     PointerBlock pointerBlock;
@@ -1759,7 +1788,7 @@ bool ReportManager::addPointerBlockTree(const string& diskPath, const SuperBlock
 }
 
 
-//Convierte permisos octales a rwx
+//convierte permisos octales a rwx
 string ReportManager::permissionToText(const Inode& inode) const {
     string result;
 

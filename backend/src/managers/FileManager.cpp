@@ -1,6 +1,7 @@
 #include "managers/FileManager.hpp"
 
 #include <ctime>
+#include <algorithm>
 
 #include "managers/FileSystemManager.hpp"
 #include "managers/MountManager.hpp"
@@ -10,7 +11,25 @@
 using namespace std;
 
 
-//Crea una carpeta dentro del sistema
+//cuenta datos y apuntadores para un archivo continuo
+static int storageBlocks(int dataBlocks){
+    int total = dataBlocks;
+    if (dataBlocks > 12){
+        total++;
+    }
+    if (dataBlocks > 28){
+        int doubleBlocks = min(dataBlocks - 28, 256);
+        total += 1 + (doubleBlocks + 15) / 16;
+    }
+    if (dataBlocks > 284){
+        int tripleBlocks = dataBlocks - 284;
+        total += 1 + (tripleBlocks + 255) / 256 + (tripleBlocks + 15) / 16;
+    }
+    return total;
+}
+
+
+//crea una carpeta dentro del sistema
 bool FileManager::createDirectory(const string& path, bool recursive, AppState& appState, string& message) const {
     if (!appState.session.active){
         message = "Error: debe iniciar sesion para crear carpetas.";
@@ -85,8 +104,8 @@ bool FileManager::createDirectory(const string& path, bool recursive, AppState& 
             }
 
             if (lastPart){
-                message = "Error: la carpeta " + currentName + " ya existe.";
-                return false;
+                message = recursive ? "La carpeta ya existe; no se realizaron cambios." : "Error: la carpeta " + currentName + " ya existe.";
+                return recursive;
             }
 
             currentInodeIndex = foundInodeIndex;
@@ -125,7 +144,7 @@ bool FileManager::createDirectory(const string& path, bool recursive, AppState& 
 }
 
 
-//Crea un archivo dentro del sistema
+//crea un archivo dentro del sistema
 bool FileManager::createFile(const string& path, const string& content, bool recursive, bool overwrite, AppState& appState, string& message) const {
     if (!appState.session.active){
         message = "Error: debe iniciar sesion para crear archivos.";
@@ -223,6 +242,11 @@ bool FileManager::createFile(const string& path, const string& content, bool rec
         parentInode = foundInode;
     }
 
+    if (!canWrite(parentInode, appState.session.uid, appState.session.gid)){
+        message = "Error: no tiene permiso de escritura en la carpeta padre.";
+        return false;
+    }
+
     int existingInodeIndex = findEntry(mountedPartition.path, superBlock, parentInode, fileName);
 
     //si existe verifica si se reemplaza
@@ -239,13 +263,17 @@ bool FileManager::createFile(const string& path, const string& content, bool rec
             return false;
         }
 
-        if (!overwrite){
-            message = "Error: el archivo " + fileName + " ya existe.";
+        if (!canWrite(existingInode, appState.session.uid, appState.session.gid)){
+            message = "Error: no tiene permiso para modificar el archivo.";
             return false;
         }
 
-        if (!canWrite(existingInode, appState.session.uid, appState.session.gid)){
-            message = "Error: no tiene permiso para modificar el archivo.";
+        if (!overwrite){
+            appState.pendingConfirmation.active = true;
+            appState.pendingConfirmation.path = path;
+            appState.pendingConfirmation.content = content;
+            appState.pendingConfirmation.recursive = recursive;
+            message = "El archivo ya existe.\n¿Desea sobrescribirlo? [y/n]:";
             return false;
         }
 
@@ -287,7 +315,7 @@ bool FileManager::createFile(const string& path, const string& content, bool rec
 }
 
 
-//Lee el contenido de un archivo
+//lee el contenido de un archivo
 bool FileManager::readFile(const string& path, const AppState& appState, string& content, string& message) const {
     if (!appState.session.active){
         message = "Error: debe iniciar sesion para leer archivos.";
@@ -332,12 +360,18 @@ bool FileManager::readFile(const string& path, const AppState& appState, string&
         return false;
     }
 
+    inode.i_atime = time(nullptr);
+    if (!fileSystemManager.writeInode(mountedPartition.path, superBlock, inodeIndex, inode)){
+        message = "Error: no se pudo actualizar la fecha de lectura.";
+        return false;
+    }
+
     message = "Archivo leido correctamente.";
     return true;
 }
 
 
-//Reemplaza el contenido de un archivo
+//reemplaza el contenido de un archivo
 bool FileManager::writeFile(const string& path, const string& content, AppState& appState, string& message) const {
     if (!appState.session.active){
         message = "Error: debe iniciar sesion para modificar archivos.";
@@ -387,7 +421,7 @@ bool FileManager::writeFile(const string& path, const string& content, AppState&
 }
 
 
-//Busca el inodo que corresponde a una ruta
+//busca el inodo que corresponde a una ruta
 bool FileManager::findInodeByPath(const string& path, const AppState& appState, int& inodeIndex, Inode& inode, string& message) const {
     if (!appState.session.active){
         message = "Error: no hay una sesion activa.";
@@ -455,7 +489,7 @@ bool FileManager::findInodeByPath(const string& path, const AppState& appState, 
 }
 
 
-//Obtiene las entradas de una carpeta
+//obtiene las entradas de una carpeta
 bool FileManager::getDirectoryContent(const string& path, const AppState& appState, vector<Content>& entries, string& message) const {
     entries.clear();
 
@@ -519,7 +553,7 @@ bool FileManager::getDirectoryContent(const string& path, const AppState& appSta
 }
 
 
-//Verifica si una ruta ya existe
+//verifica si una ruta ya existe
 bool FileManager::pathExists(const string& path, const AppState& appState) const {
     int inodeIndex = -1;
     Inode inode;
@@ -529,7 +563,7 @@ bool FileManager::pathExists(const string& path, const AppState& appState) const
 }
 
 
-//Divide una ruta en sus partes
+//divide una ruta en sus partes
 vector<string> FileManager::splitPath(const string& path) const {
     vector<string> parts;
     string currentPart;
@@ -556,7 +590,7 @@ vector<string> FileManager::splitPath(const string& path) const {
 }
 
 
-//Busca una entrada dentro de una carpeta
+//busca una entrada dentro de una carpeta
 int FileManager::findEntry(const string& diskPath, const SuperBlock& superBlock, const Inode& directoryInode, const string& name) const {
     FileSystemManager fileSystemManager;
 
@@ -591,7 +625,7 @@ int FileManager::findEntry(const string& diskPath, const SuperBlock& superBlock,
 }
 
 
-//Busca espacio libre dentro de una carpeta
+//busca espacio libre dentro de una carpeta
 bool FileManager::findFreeDirectoryEntry(const string& diskPath, int partitionStart, SuperBlock& superBlock, int directoryInodeIndex, Inode& directoryInode, int& blockIndex, int& entryIndex) const {
     FileSystemManager fileSystemManager;
 
@@ -600,6 +634,11 @@ bool FileManager::findFreeDirectoryEntry(const string& diskPath, int partitionSt
         int currentBlockIndex = getDataBlock(diskPath, superBlock, directoryInode, logicalBlock);
 
         if (currentBlockIndex == -1){
+            int currentBlocks = directoryInode.i_s / 64;
+            int needed = storageBlocks(currentBlocks + 1) - storageBlocks(currentBlocks);
+            if (needed > superBlock.s_free_blocks_count){
+                return false;
+            }
             int newBlockIndex = fileSystemManager.allocateBlock(diskPath, partitionStart, superBlock);
 
             if (newBlockIndex == -1){
@@ -649,7 +688,7 @@ bool FileManager::findFreeDirectoryEntry(const string& diskPath, int partitionSt
 }
 
 
-//Agrega una entrada dentro de una carpeta
+//agrega una entrada dentro de una carpeta
 bool FileManager::addDirectoryEntry(const string& diskPath, int partitionStart, SuperBlock& superBlock, int directoryInodeIndex, Inode& directoryInode, const string& name, int newInodeIndex) const {
     if (name.empty() || name.size() > 12){
         return false;
@@ -682,7 +721,7 @@ bool FileManager::addDirectoryEntry(const string& diskPath, int partitionStart, 
 }
 
 
-//Crea una carpeta individual
+//crea una carpeta individual
 bool FileManager::createSingleDirectory(const string& diskPath, int partitionStart, SuperBlock& superBlock, int parentInodeIndex, const string& name, int uid, int gid, int& newInodeIndex) const {
     if (name.empty() || name.size() > 12){
         return false;
@@ -755,7 +794,7 @@ bool FileManager::createSingleDirectory(const string& diskPath, int partitionSta
 }
 
 
-//Crea el inodo de un archivo
+//crea el inodo de un archivo
 bool FileManager::createFileInode(const string& diskPath, int partitionStart, SuperBlock& superBlock, int uid, int gid, const string& content, int& inodeIndex) const {
     FileSystemManager fileSystemManager;
     int newInodeIndex = fileSystemManager.allocateInode(diskPath, partitionStart, superBlock);
@@ -792,18 +831,21 @@ bool FileManager::createFileInode(const string& diskPath, int partitionStart, Su
 }
 
 
-//Escribe contenido dentro de los bloques de un archivo
+//escribe contenido dentro de los bloques de un archivo
 bool FileManager::writeFileContent(const string& diskPath, int partitionStart, SuperBlock& superBlock, int inodeIndex, Inode& inode, const string& content) const {
     FileSystemManager fileSystemManager;
 
-    //libera contenido anterior
-    if (!freeFileBlocks(diskPath, partitionStart, superBlock, inode)){
+    if (content.size() > 4380 * 64){
+        return false;
+    }
+    int requiredBlocks = static_cast<int>((content.size() + 63) / 64);
+    int previousBlocks = (inode.i_s + 63) / 64;
+    if (storageBlocks(requiredBlocks) > superBlock.s_free_blocks_count + storageBlocks(previousBlocks)){
         return false;
     }
 
-    int requiredBlocks = static_cast<int>((content.size() + 63) / 64);
-
-    if (requiredBlocks > 4380){
+    //valida el espacio antes de tocar el contenido anterior
+    if (!freeFileBlocks(diskPath, partitionStart, superBlock, inode)){
         return false;
     }
 
@@ -851,7 +893,7 @@ bool FileManager::writeFileContent(const string& diskPath, int partitionStart, S
 }
 
 
-//Lee todos los bloques de un archivo
+//lee todos los bloques de un archivo
 bool FileManager::readFileContent(const string& diskPath, const SuperBlock& superBlock, const Inode& inode, string& content) const {
     FileSystemManager fileSystemManager;
     content = "";
@@ -886,7 +928,7 @@ bool FileManager::readFileContent(const string& diskPath, const SuperBlock& supe
 }
 
 
-//Obtiene un bloque usando los apuntadores del inodo
+//obtiene un bloque usando los apuntadores del inodo
 int FileManager::getDataBlock(const string& diskPath, const SuperBlock& superBlock, const Inode& inode, int logicalBlock) const {
     if (logicalBlock < 0){
         return -1;
@@ -916,7 +958,7 @@ int FileManager::getDataBlock(const string& diskPath, const SuperBlock& superBlo
 }
 
 
-//Asigna un bloque al inodo
+//asigna un bloque al inodo
 bool FileManager::setDataBlock(const string& diskPath, int partitionStart, SuperBlock& superBlock, Inode& inode, int logicalBlock, int blockIndex) const {
     if (logicalBlock < 0 || logicalBlock >= 4380){
         return false;
@@ -943,7 +985,7 @@ bool FileManager::setDataBlock(const string& diskPath, int partitionStart, Super
 }
 
 
-//Maneja apuntador indirecto simple
+//maneja apuntador indirecto simple
 int FileManager::getSimpleIndirectBlock(const string& diskPath, const SuperBlock& superBlock, int pointerBlockIndex, int position) const {
     if (pointerBlockIndex == -1 || position < 0 || position >= 16){
         return -1;
@@ -960,7 +1002,7 @@ int FileManager::getSimpleIndirectBlock(const string& diskPath, const SuperBlock
 }
 
 
-//Maneja apuntador indirecto doble
+//maneja apuntador indirecto doble
 int FileManager::getDoubleIndirectBlock(const string& diskPath, const SuperBlock& superBlock, int pointerBlockIndex, int position) const {
     if (pointerBlockIndex == -1 || position < 0 || position >= 256){
         return -1;
@@ -991,7 +1033,7 @@ int FileManager::getDoubleIndirectBlock(const string& diskPath, const SuperBlock
 }
 
 
-//Maneja apuntador indirecto triple
+//maneja apuntador indirecto triple
 int FileManager::getTripleIndirectBlock(const string& diskPath, const SuperBlock& superBlock, int pointerBlockIndex, int position) const {
     if (pointerBlockIndex == -1 || position < 0 || position >= 4096){
         return -1;
@@ -1037,7 +1079,7 @@ int FileManager::getTripleIndirectBlock(const string& diskPath, const SuperBlock
 }
 
 
-//Asigna usando apuntador indirecto simple
+//asigna usando apuntador indirecto simple
 bool FileManager::setSimpleIndirectBlock(const string& diskPath, int partitionStart, SuperBlock& superBlock, Inode& inode, int logicalBlock, int blockIndex) const {
     FileSystemManager fileSystemManager;
     int position = logicalBlock - 12;
@@ -1076,7 +1118,7 @@ bool FileManager::setSimpleIndirectBlock(const string& diskPath, int partitionSt
 }
 
 
-//Asigna usando apuntador indirecto doble
+//asigna usando apuntador indirecto doble
 bool FileManager::setDoubleIndirectBlock(const string& diskPath, int partitionStart, SuperBlock& superBlock, Inode& inode, int logicalBlock, int blockIndex) const {
     FileSystemManager fileSystemManager;
     int position = logicalBlock - 28;
@@ -1148,7 +1190,7 @@ bool FileManager::setDoubleIndirectBlock(const string& diskPath, int partitionSt
 }
 
 
-//Asigna usando apuntador indirecto triple
+//asigna usando apuntador indirecto triple
 bool FileManager::setTripleIndirectBlock(const string& diskPath, int partitionStart, SuperBlock& superBlock, Inode& inode, int logicalBlock, int blockIndex) const {
     FileSystemManager fileSystemManager;
     int position = logicalBlock - 284;
@@ -1252,7 +1294,7 @@ bool FileManager::setTripleIndirectBlock(const string& diskPath, int partitionSt
 }
 
 
-//Libera los bloques usados por un archivo
+//libera los bloques usados por un archivo
 bool FileManager::freeFileBlocks(const string& diskPath, int partitionStart, SuperBlock& superBlock, Inode& inode) const {
     FileSystemManager fileSystemManager;
 
@@ -1390,7 +1432,7 @@ bool FileManager::freeFileBlocks(const string& diskPath, int partitionStart, Sup
 }
 
 
-//Verifica permiso de lectura
+//verifica permiso de lectura
 bool FileManager::canRead(const Inode& inode, int uid, int gid) const {
     if (uid == 1){
         return true;
@@ -1402,7 +1444,7 @@ bool FileManager::canRead(const Inode& inode, int uid, int gid) const {
 }
 
 
-//Verifica permiso de escritura
+//verifica permiso de escritura
 bool FileManager::canWrite(const Inode& inode, int uid, int gid) const {
     if (uid == 1){
         return true;
@@ -1414,7 +1456,7 @@ bool FileManager::canWrite(const Inode& inode, int uid, int gid) const {
 }
 
 
-//Obtiene el permiso que corresponde al usuario
+//obtiene el permiso que corresponde al usuario
 int FileManager::getPermission(const Inode& inode, int uid, int gid) const {
     int permissionPosition = 2;
 

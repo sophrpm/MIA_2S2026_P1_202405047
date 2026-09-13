@@ -6,8 +6,12 @@
 using namespace std;
 
 
-//Llena un espacio del archivo con ceros
+//llena un espacio del archivo con ceros
 bool BinaryUtils::clearSpace(const string& path, int start, int size){
+    if (start < 0 || size < 0 || static_cast<long long>(start) + size > getFileSize(path)){
+        return false;
+    }
+
     fstream file(path, ios::in | ios::out | ios::binary);
 
     if (!file.is_open()){
@@ -24,7 +28,7 @@ bool BinaryUtils::clearSpace(const string& path, int start, int size){
     char buffer[1024] = {};
     int remainingBytes = size;
 
-    //Escribe ceros hasta completar el espacio
+    //escribe ceros hasta completar el espacio
     while (remainingBytes > 0){
         int bytesToWrite = remainingBytes > 1024 ? 1024 : remainingBytes;
         file.write(buffer, bytesToWrite);
@@ -42,7 +46,7 @@ bool BinaryUtils::clearSpace(const string& path, int start, int size){
 }
 
 
-//Verifica si existe un archivo
+//verifica si existe un archivo
 bool BinaryUtils::fileExists(const string& path){
     ifstream file(path, ios::binary);
 
@@ -55,7 +59,7 @@ bool BinaryUtils::fileExists(const string& path){
 }
 
 
-//Obtiene el tamaño de un archivo
+//obtiene el tamaño de un archivo
 long long BinaryUtils::getFileSize(const string& path){
     ifstream file(path, ios::binary | ios::ate);
 
@@ -70,13 +74,13 @@ long long BinaryUtils::getFileSize(const string& path){
 }
 
 
-//Copia texto a un arreglo char fijo
+//copia texto a un arreglo char fijo
 void BinaryUtils::copyToFixedChar(char* destination, int size, const string& text){
     if (destination == nullptr || size <= 0){
         return;
     }
 
-    //Limpia primero todo el arreglo
+    //limpia primero todo el arreglo
     for (int position = 0; position < size; position++){
         destination[position] = '\0';
     }
@@ -87,14 +91,14 @@ void BinaryUtils::copyToFixedChar(char* destination, int size, const string& tex
         charactersToCopy = size;
     }
 
-    //Copia solamente lo que cabe
+    //copia solamente lo que cabe
     for (int position = 0; position < charactersToCopy; position++){
         destination[position] = text[position];
     }
 }
 
 
-//Convierte arreglo char fijo a string
+//convierte arreglo char fijo a string
 string BinaryUtils::fixedCharToString(const char* text, int size){
     if (text == nullptr || size <= 0){
         return "";
@@ -102,7 +106,7 @@ string BinaryUtils::fixedCharToString(const char* text, int size){
 
     string result;
 
-    //Lee hasta tamaño maximo o caracter nulo
+    //lee hasta tamaño maximo o caracter nulo
     for (int position = 0; position < size; position++){
         if (text[position] == '\0'){
             break;

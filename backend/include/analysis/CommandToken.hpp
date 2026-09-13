@@ -27,6 +27,7 @@ struct Token {
 struct TokenizeResult {
     vector<Token> tokens;
     vector<string> errors;
+    bool separated = true;
 };
 
 //Recorre el texto y lo separa en tokens

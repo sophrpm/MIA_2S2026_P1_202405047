@@ -1,6 +1,8 @@
 #include "managers/MountManager.hpp"
 
 #include "managers/DiskManager.hpp"
+#include "managers/FileSystemManager.hpp"
+#include "utils/PathUtils.hpp"
 #include "state/AppState.hpp"
 #include "utils/BinaryUtils.hpp"
 #include "utils/StringUtils.hpp"
@@ -8,8 +10,9 @@
 using namespace std;
 
 
-//Monta una particion primaria
-bool MountManager::mountPartition(const string& path, const string& name, AppState& appState, string& message) const {
+//monta una particion primaria
+bool MountManager::mountPartition(const string& inputPath, const string& name, AppState& appState, string& message) const {
+    string path = PathUtils::canonicalPath(inputPath);
     DiskManager diskManager;
     MBR mbr;
 
@@ -19,7 +22,7 @@ bool MountManager::mountPartition(const string& path, const string& name, AppSta
         return false;
     }
 
-    //busca la particion en el MBR
+    //busca la particion en el mbr
     int partitionIndex = diskManager.findPartition(mbr, name);
 
     if (partitionIndex == -1){
@@ -56,10 +59,21 @@ bool MountManager::mountPartition(const string& path, const string& name, AppSta
         return false;
     }
 
-    //actualiza status, correlativo e id en el MBR
+    //actualiza status, correlativo e id en el mbr
     if (!updatePartitionMount(path, name, correlative, id)){
         message = "Error: no se pudo actualizar la particion dentro del disco.";
         return false;
+    }
+
+    FileSystemManager fileSystemManager;
+    SuperBlock superBlock;
+    if (fileSystemManager.readSuperBlock(path, partition.part_start, superBlock) && superBlock.s_magic == 0xEF53){
+        superBlock.s_mtime = time(nullptr);
+        superBlock.s_mnt_count++;
+        if (!fileSystemManager.writeSuperBlock(path, partition.part_start, superBlock)){
+            message = "Error: no se pudo actualizar la fecha del montaje.";
+            return false;
+        }
     }
 
     //guarda montaje en memoria
@@ -79,10 +93,19 @@ bool MountManager::mountPartition(const string& path, const string& name, AppSta
 }
 
 
-//Busca una particion montada por id
+//busca una particion montada por id
 bool MountManager::getMountedPartition(const AppState& appState, const string& id, MountedPartition& mountedPartition) const {
     for (const MountedPartition& currentPartition : appState.mountedPartitions){
         if (currentPartition.id == id){
+            DiskManager diskManager;
+            MBR mbr;
+            if (!diskManager.readMBR(currentPartition.path, mbr)){
+                return false;
+            }
+            int index = diskManager.findPartition(mbr, currentPartition.name);
+            if (index < 0 || mbr.mbr_partitions[index].part_start != currentPartition.start || mbr.mbr_partitions[index].part_s != currentPartition.size){
+                return false;
+            }
             mountedPartition = currentPartition;
             return true;
         }
@@ -92,13 +115,13 @@ bool MountManager::getMountedPartition(const AppState& appState, const string& i
 }
 
 
-//Devuelve las particiones montadas
+//devuelve las particiones montadas
 vector<MountedPartition> MountManager::getMountedPartitions(const AppState& appState) const {
     return appState.mountedPartitions;
 }
 
 
-//Verifica si ya esta montada
+//verifica si ya esta montada
 bool MountManager::isMounted(const AppState& appState, const string& path, const string& name) const {
     for (const MountedPartition& mountedPartition : appState.mountedPartitions){
         if (mountedPartition.path == path && StringUtils::equalsIgnoreCase(mountedPartition.name, name)){
@@ -110,7 +133,7 @@ bool MountManager::isMounted(const AppState& appState, const string& path, const
 }
 
 
-//Obtiene la letra que le corresponde al disco
+//obtiene la letra que le corresponde al disco
 char MountManager::getDiskLetter(const AppState& appState, const string& path) const {
 
     //si el disco ya tiene montajes conserva su letra
@@ -140,7 +163,7 @@ char MountManager::getDiskLetter(const AppState& appState, const string& path) c
 }
 
 
-//Obtiene el siguiente correlativo del disco
+//obtiene el siguiente correlativo del disco
 int MountManager::getNextCorrelative(const AppState& appState, const string& path) const {
     int greaterCorrelative = 0;
 
@@ -155,7 +178,7 @@ int MountManager::getNextCorrelative(const AppState& appState, const string& pat
 }
 
 
-//Crea el id de la particion
+//crea el id de la particion
 string MountManager::createMountId(const string& carnet, int correlative, char diskLetter) const {
     if (carnet.size() < 2){
         return "";
@@ -175,7 +198,7 @@ string MountManager::createMountId(const string& carnet, int correlative, char d
 }
 
 
-//Guarda datos del montaje dentro del MBR
+//guarda datos del montaje dentro del mbr
 bool MountManager::updatePartitionMount(const string& path, const string& name, int correlative, const string& id) const {
     DiskManager diskManager;
     MBR mbr;
